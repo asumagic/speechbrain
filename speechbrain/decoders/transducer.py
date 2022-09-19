@@ -525,6 +525,10 @@ class TransducerBeamSearcher(torch.nn.Module):
 
 
 class FastRNNTBeamSearcher(TransducerBeamSearcher):
+    """
+    A beam searcher when using pruned Fast-RNNT loss. It supposed to do the
+    same job as TransducerBeamSearcher, but it has a different signature.
+    """
     def __init__(
         self,
         decode_network_lst,
@@ -552,7 +556,6 @@ class FastRNNTBeamSearcher(TransducerBeamSearcher):
     
     def _joint_forward_step(self, h_i, out_PN):
         """Join predictions (TN & PN)."""
-
         with torch.no_grad():
             out = self.tjoint(h_i, out_PN)
             log_probs = self.softmax(out)
