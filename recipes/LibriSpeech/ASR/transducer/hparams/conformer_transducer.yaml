@@ -46,6 +46,8 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 # The global batch size is computed as batch_size * n_gpus * gradient_accumulation.
 # Empirically, we found that this value should be >= 128.
 # Please, set your parameters accordingly.
+streaming: True
+auto_mix_prec: True
 number_of_epochs: 40
 warmup_steps: 25000
 num_workers: 4
@@ -57,6 +59,10 @@ ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
 ce_weight: 0.0 # Multitask with CE for the decoder (0.0 = disabled)
 max_grad_norm: 5.0
 loss_reduction: 'batchmean'
+dynamic_chunk_thresh: 0.5
+dynamic_chunk_min: 1
+dynamic_chunk_max: 16
+test_chunk_size: 8
 
 # Used if and only if dynamic batching is set to False
 batch_size: 8
@@ -82,8 +88,8 @@ test_dataloader_opts:
 # This setup works well for V100 32GB GPU, adapts it to your needs.
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 900
-max_batch_len_val: 100 # we reduce it as the beam is much wider (VRAM)
+max_batch_len: 250
+max_batch_len_val: 30 # we reduce it as the beam is much wider (VRAM)
 num_bucket: 200
 
 dynamic_batch_sampler:
@@ -158,9 +164,12 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    num_blocks: 2
    num_layers_per_block: 1
    out_channels: (128, 64)
-   kernel_sizes: (3, 3)
-   strides: (2, 2)
+   kernel_sizes: [[3, 3], [3, 3]]
+   strides: [[2, 2], [2, 2]]
+   dilations: [[1, 1], [1, 1]]
    residuals: (False, False)
+   padding: same
+   padding_mode: constant # FIXME: no way to provide constant etc.
 
 Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR # yamllint disable-line rule:line-length
    input_size: 1280
@@ -175,7 +184,7 @@ Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.Transforme
    encoder_module: conformer
    attention_type: RelPosMHAXL
    normalize_before: True
-   causal: False
+   causal: !ref <streaming>
 
 # We must call an encoder wrapper so the decoder isn't run (we don't have any)
 enc: !new:speechbrain.lobes.models.transformer.TransformerASR.EncoderWrapper

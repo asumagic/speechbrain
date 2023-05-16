@@ -36,6 +36,7 @@ import torch
 import logging
 import speechbrain as sb
 from speechbrain.utils.distributed import run_on_main
+from speechbrain.utils.streaming import chunkify_sequence, chunked_wav_lens, merge_chunks
 from hyperpyyaml import load_hyperpyyaml
 from pathlib import Path
 
@@ -67,16 +68,74 @@ class ASR(sb.Brain):
                 batch.tokens_bos = tokens_with_bos, token_with_bos_lens
 
         # Forward pass
-        feats = self.hparams.compute_features(wavs)
         current_epoch = self.hparams.epoch_counter.current
-        feats = self.modules.normalize(feats, wav_lens, epoch=current_epoch)
 
-        if stage == sb.Stage.TRAIN:
-            if hasattr(self.hparams, "augmentation"):
-                feats = self.hparams.augmentation(feats)
+        if (
+            stage == sb.Stage.TRAIN
+            and torch.rand((1, )).item() < self.hparams.dynamic_chunk_thresh
+        ):
+            transformer_chunk_size = torch.randint(
+                self.hparams.dynamic_chunk_min,
+                self.hparams.dynamic_chunk_max + 1,
+                (1, )
+            ).item()
+            chunk_size = self.required_samples_for(transformer_chunk_size)
+        elif (
+            stage == sb.Stage.VALID # HACK
+            and self.hparams.test_chunk_size != 0
+        ):
+            transformer_chunk_size = self.hparams.test_chunk_size
+            chunk_size = self.required_samples_for(transformer_chunk_size)
+        else:
+            transformer_chunk_size = 0
+            chunk_size = None
 
-        src = self.modules.CNN(feats)
-        x = self.modules.enc(src, wav_lens, pad_idx=self.hparams.pad_index)
+        # logger.info(f"Batch uses tfx chunk size = {transformer_chunk_size}, frame chunk_size = {chunk_size}")
+
+        if chunk_size is not None:
+            # print(f"wavs has a shape of {wavs.shape}")
+            wav_chunks = chunkify_sequence(wavs, chunk_size)
+            # wav_len_chunks = chunked_wav_lens(wav_chunks, wav_lens)
+        
+            feat_chunks = [self.hparams.compute_features(chunk) for chunk in wav_chunks]
+            # print(f"split wavs into {len(wav_chunks)} chunks")
+            # print(f"1 feat chunk has shape {feat_chunks[0].shape}")
+            # print(f"1 norm chunk has shape {feat_chunks[0].shape}")
+
+            feats = merge_chunks(feat_chunks)
+            feats = torch.nan_to_num(feats, -1000.0, -1000.0, -1000.0)
+            feats = self.modules.normalize(feats, wav_lens, epoch=current_epoch)
+
+            if stage == sb.Stage.TRAIN:
+                if hasattr(self.hparams, "augmentation"):
+                    # print(f"norm gives {feats}")
+                    feats = self.hparams.augmentation(feats)
+                    # print(f"augmented shape is {feats.shape}")
+
+            feat_chunks = chunkify_sequence(feats, chunk_size)
+
+            # print(f"1 aug chunk has shape {feat_chunks[0].shape}")
+
+            src = [self.hparams.CNN(chunk) for chunk in feat_chunks]
+            src = merge_chunks(src)
+            # print(f"final shape before enc has shape {src.shape}")
+        else:
+            feats = self.hparams.compute_features(wavs)
+            feats = self.modules.normalize(feats, wav_lens, epoch=current_epoch)
+
+            if stage == sb.Stage.TRAIN:
+                if hasattr(self.hparams, "augmentation"):
+                    feats = self.hparams.augmentation(feats)
+
+            # print(f"post aug has shape {feats.shape}")
+            src = self.modules.CNN(feats)
+
+        x = self.modules.enc(
+            src,
+            wav_lens,
+            pad_idx=self.hparams.pad_index,
+            chunk_masking=transformer_chunk_size
+        )
         x = self.modules.proj_enc(x)
 
         e_in = self.modules.emb(tokens_with_bos)
@@ -258,6 +317,14 @@ class ASR(sb.Brain):
             with open(self.hparams.wer_file, "w") as w:
                 self.wer_metric.write_stats(w)
 
+    def required_samples_for(self, transformer_chunk_size):
+        # FIXME: use real values from hparams
+        cnn_subsampling_factor = 4
+        stride_frames = 160
+
+        fbanks_required = transformer_chunk_size * cnn_subsampling_factor
+
+        return (fbanks_required - 1) * stride_frames
 
 def dataio_prepare(hparams):
     """This function prepares the datasets to be used in the brain class.
@@ -458,13 +525,14 @@ if __name__ == "__main__":
         valid_dataloader_opts = {"batch_sampler": valid_bsampler}
 
     # Training
-    asr_brain.fit(
-        asr_brain.hparams.epoch_counter,
-        train_data,
-        valid_data,
-        train_loader_kwargs=train_dataloader_opts,
-        valid_loader_kwargs=valid_dataloader_opts,
-    )
+    #with torch.autograd.detect_anomaly():
+        asr_brain.fit(
+            asr_brain.hparams.epoch_counter,
+            train_data,
+            valid_data,
+            train_loader_kwargs=train_dataloader_opts,
+            valid_loader_kwargs=valid_dataloader_opts,
+        )
 
     # Testing
     for k in test_datasets.keys():  # keys are test_clean, test_other etc

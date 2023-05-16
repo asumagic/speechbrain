@@ -1026,7 +1026,6 @@ class InputNormalization(torch.nn.Module):
             current_mean, current_std = self._compute_current_stats(
                 x[snt_id, 0:actual_size, ...]
             )
-
             current_means.append(current_mean)
             current_stds.append(current_std)
 
@@ -1107,6 +1106,7 @@ class InputNormalization(torch.nn.Module):
                         self.glob_std = (
                             1 - self.weight
                         ) * self.glob_std + self.weight * current_std
+
 
                     self.glob_mean.detach()
                     self.glob_std.detach()
