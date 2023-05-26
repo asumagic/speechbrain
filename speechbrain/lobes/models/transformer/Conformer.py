@@ -7,8 +7,10 @@ Authors
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from typing import Optional
 import speechbrain as sb
+import math
 import warnings
 
 
@@ -98,20 +100,96 @@ class ConvolutionModule(nn.Module):
             nn.Dropout(dropout),
         )
 
-    def forward(self, x, mask=None):
-        """ Processes the input tensor x and returns the output an output tensor"""
+    def _do_conv(self, x, inhibit_padding: bool):
         out = self.layer_norm(x)
         out = out.transpose(1, 2)
         out = self.bottleneck(out)
-        out = self.conv(out)
+
+        if not inhibit_padding:
+            out = self.conv(out)
+        else:
+            # let's keep backwards compat by pointing at the weights from the
+            # already declared Conv1d.
+
+            # we do not nede to edit bottleneck as it is pointwise (i.e. time
+            # step by time step), thus, it doesn't need padding along the
+            # time dimension
+            out = F.conv1d(
+                out,
+                weight=self.conv.weight,
+                bias=self.conv.bias,
+                stride=self.conv.stride,
+                padding=0,
+                dilation=self.conv.dilation,
+                groups=out.shape[-2],
+            )
 
         if self.causal:
             # chomp
             out = out[..., : -self.padding]
         out = out.transpose(1, 2)
         out = self.after_conv(out)
+        return out
+
+    def forward(self, x, mask=None, chunk_size=None):
+        """ Processes the input tensor x and returns the output an output tensor"""
+
+        # ref: Dynamic chunk convolution for unified streaming and non-streaming
+        # conformer ASR
+        # https://www.amazon.science/publications/dynamic-chunk-convolution-for-unified-streaming-and-non-streaming-conformer-asr
+        # split the input into chunks of size `chunk_size`, but for each chunk
+        # provide a left context for left chunk dependencies to be possible.
+        if chunk_size is not None:
+            # chances are chunking+causal is unintended; i don't know where it
+            # may make sense, but if it does to you, feel free to implement it.
+            assert (
+                not self.causal
+            ), "Chunked convolution not supported with causal padding"
+
+            chunk_left_context = self.padding
+            chunk_count = math.ceil(x.shape[1] / chunk_size)
+
+            applied_left_context = [
+                min(
+                    chunk_left_context,
+                    i * chunk_size,
+                )
+                for i in range(chunk_count)
+            ]
+
+            # add left context
+            # the left context effectively becomes "left padding", we do not
+            # want to keep any convolution results centered on the left context
+            out = [
+                x[:,i * chunk_size - applied_left_context[i]:(i + 1) * chunk_size,...]
+                for i in range(chunk_count)
+            ]
+
+            # add missing left padding (if we don't have enough context)
+            # add right padding (as we disable default padding, which is
+            # forcefully bidirectional)
+            out = [
+                F.pad(out[i], (
+                    0,
+                    0,
+                    chunk_left_context - applied_left_context[i],  # left
+                    self.padding  # right
+                ))
+                for i in range(len(out))
+            ]
+
+            # usual, but chunk-wise processing
+            out = [
+                self._do_conv(chunk, inhibit_padding=True) for chunk in out
+            ]
+
+            out = torch.cat(out, 1)
+        else:
+            out = self._do_conv(x, inhibit_padding=False)
+
         if mask is not None:
             out.masked_fill_(mask, 0.0)
+
         return out
 
 
@@ -223,6 +301,8 @@ class ConformerEncoderLayer(nn.Module):
         src_mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: Optional[torch.Tensor] = None,
+        chunk_size: Optional[int] = None,
+        left_context_chunks: int = -1,
     ):
         """
         Arguments
@@ -235,7 +315,12 @@ class ConformerEncoderLayer(nn.Module):
             The mask for the src keys per batch.
         pos_embs: torch.Tensor, torch.nn.Module, optional
             Module or tensor containing the input sequence positional embeddings
+        chunk_size: int, optional
+            Whether to preform convolution chunking to hide future context,
+            useful for chunked conformers in a dynamic chunk training setting
         """
+        # TODO: cite paper for chunk size
+        # TODO: document left frames
         conv_mask = None
         if src_key_padding_mask is not None:
             conv_mask = src_key_padding_mask.unsqueeze(-1)
@@ -254,7 +339,7 @@ class ConformerEncoderLayer(nn.Module):
         )
         x = x + skip
         # convolution module
-        x = x + self.convolution_module(x, conv_mask)
+        x = x + self.convolution_module(x, conv_mask, chunk_size=chunk_size)
         # ffn module
         x = self.norm2(x + 0.5 * self.ffn_module2(x))
         return x, self_attn
@@ -346,6 +431,8 @@ class ConformerEncoder(nn.Module):
         src_mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: Optional[torch.Tensor] = None,
+        chunk_size: Optional[int] = None,
+        left_context_chunks: int = -1,
     ):
         """
         Arguments
@@ -360,6 +447,9 @@ class ConformerEncoder(nn.Module):
             Module or tensor containing the input sequence positional embeddings
             If custom pos_embs are given it needs to have the shape (1, 2*S-1, E)
             where S is the sequence length, and E is the embedding dimension.
+        chunk_size: int, optional
+            Whether to preform convolution chunking to hide future context,
+            useful for chunked conformers in a dynamic chunk training setting
         """
 
         if self.attention_type == "RelPosMHAXL":
@@ -376,6 +466,8 @@ class ConformerEncoder(nn.Module):
                 src_mask=src_mask,
                 src_key_padding_mask=src_key_padding_mask,
                 pos_embs=pos_embs,
+                chunk_size=chunk_size,
+                left_context_chunks=left_context_chunks,
             )
             attention_lst.append(attention)
         output = self.norm(output)

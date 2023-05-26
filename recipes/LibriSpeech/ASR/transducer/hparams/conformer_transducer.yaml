@@ -60,8 +60,8 @@ ce_weight: 0.0 # Multitask with CE for the decoder (0.0 = disabled)
 max_grad_norm: 5.0
 loss_reduction: 'batchmean'
 dynamic_chunk_thresh: 0.5
-dynamic_chunk_min: 1
-dynamic_chunk_max: 16
+dynamic_chunk_min: 4
+dynamic_chunk_max: 32
 test_chunk_size: 8
 
 # Used if and only if dynamic batching is set to False
@@ -137,6 +137,7 @@ compute_features: !new:speechbrain.lobes.features.Fbank
    sample_rate: !ref <sample_rate>
    n_fft: !ref <n_fft>
    n_mels: !ref <n_mels>
+   center: False # TODO: only in non-streaming
 
 augmentation: !new:speechbrain.lobes.augment.SpecAugment
    time_warp: True
@@ -184,7 +185,10 @@ Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.Transforme
    encoder_module: conformer
    attention_type: RelPosMHAXL
    normalize_before: True
-   causal: !ref <streaming>
+   causal: False
+   # TODO: could support list form, if eg the user wanted to enlarge context on
+   # the last few layers or whatever
+   left_context_chunks: 64 # in transformer chunks to cache
 
 # We must call an encoder wrapper so the decoder isn't run (we don't have any)
 enc: !new:speechbrain.lobes.models.transformer.TransformerASR.EncoderWrapper

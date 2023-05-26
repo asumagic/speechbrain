@@ -71,7 +71,8 @@ class ASR(sb.Brain):
         current_epoch = self.hparams.epoch_counter.current
 
         if (
-            stage == sb.Stage.TRAIN
+            self.hparams.streaming
+            and stage == sb.Stage.TRAIN
             and torch.rand((1, )).item() < self.hparams.dynamic_chunk_thresh
         ):
             transformer_chunk_size = torch.randint(
@@ -79,56 +80,58 @@ class ASR(sb.Brain):
                 self.hparams.dynamic_chunk_max + 1,
                 (1, )
             ).item()
-            chunk_size = self.required_samples_for(transformer_chunk_size)
         elif (
-            stage == sb.Stage.VALID # HACK
+            self.hparams.streaming
+            and stage == sb.Stage.VALID # HACK: should be test
             and self.hparams.test_chunk_size != 0
         ):
             transformer_chunk_size = self.hparams.test_chunk_size
-            chunk_size = self.required_samples_for(transformer_chunk_size)
         else:
-            transformer_chunk_size = 0
-            chunk_size = None
+            transformer_chunk_size = None
 
         # logger.info(f"Batch uses tfx chunk size = {transformer_chunk_size}, frame chunk_size = {chunk_size}")
 
-        if chunk_size is not None:
-            # print(f"wavs has a shape of {wavs.shape}")
-            wav_chunks = chunkify_sequence(wavs, chunk_size)
-            # wav_len_chunks = chunked_wav_lens(wav_chunks, wav_lens)
-        
-            feat_chunks = [self.hparams.compute_features(chunk) for chunk in wav_chunks]
-            # print(f"split wavs into {len(wav_chunks)} chunks")
-            # print(f"1 feat chunk has shape {feat_chunks[0].shape}")
-            # print(f"1 norm chunk has shape {feat_chunks[0].shape}")
+        if self.hparams.streaming:
+            # STFT center=False? Apply manual padding
 
-            feats = merge_chunks(feat_chunks)
-            feats = torch.nan_to_num(feats, -1000.0, -1000.0, -1000.0)
-            feats = self.modules.normalize(feats, wav_lens, epoch=current_epoch)
+            # If we left align the conv then it looks at 0..win_size
+            # So, we need to add win_size/2 of zero left padding
+            # At train time, we need to add padding to the right so that last frame looks at win_size/2 of padding
+            
+            # Thus if we have n input frames we need to fit half a window + as many strides as we can.
+            # If there's any leftover then we need to pad enough to fit a stride.
 
-            if stage == sb.Stage.TRAIN:
-                if hasattr(self.hparams, "augmentation"):
-                    # print(f"norm gives {feats}")
-                    feats = self.hparams.augmentation(feats)
-                    # print(f"augmented shape is {feats.shape}")
+            # TODO: non hardcoded
+            win_size = 400
+            win_stride = 160
 
-            feat_chunks = chunkify_sequence(feats, chunk_size)
+            left_padding = (win_size // 2) + 40  # TODO: why 40?? 1 stride*cnn stride?
+            right_remaining_frames = (wavs.shape[1] - (win_size // 2)) % win_stride
+            if right_remaining_frames != 0:
+                right_padding = win_stride - right_remaining_frames
+            else:
+                right_padding = 0
 
-            # print(f"1 aug chunk has shape {feat_chunks[0].shape}")
+            wavs = torch.nn.functional.pad(wavs, [left_padding, right_padding])
+        # logger.info(f"Batch uses tfx chunk size = {transformer_chunk_size}, frame chunk_size = {chunk_size}")
 
-            src = [self.hparams.CNN(chunk) for chunk in feat_chunks]
-            src = merge_chunks(src)
-            # print(f"final shape before enc has shape {src.shape}")
-        else:
-            feats = self.hparams.compute_features(wavs)
-            feats = self.modules.normalize(feats, wav_lens, epoch=current_epoch)
+        # torch.set_printoptions(edgeitems=20)
+        # def yolo_detect_nan(v, txt):
+        #     if v.isnan().count_nonzero().item() > 0:
+        #         print(f"found nan in {txt}: {v}")
 
-            if stage == sb.Stage.TRAIN:
-                if hasattr(self.hparams, "augmentation"):
-                    feats = self.hparams.augmentation(feats)
+        feats = self.hparams.compute_features(wavs)
+        # yolo_detect_nan(feats, "feats")
+        feats = self.modules.normalize(feats, wav_lens, epoch=current_epoch)
+        # yolo_detect_nan(feats, "norm")
 
-            # print(f"post aug has shape {feats.shape}")
-            src = self.modules.CNN(feats)
+        if stage == sb.Stage.TRAIN:
+            if hasattr(self.hparams, "augmentation"):
+                feats = self.hparams.augmentation(feats)
+
+        # print(f"post aug has shape {feats.shape}")
+        src = self.modules.CNN(feats)
+        # yolo_detect_nan(src, "downsampling cnn")
 
         x = self.modules.enc(
             src,
@@ -136,6 +139,7 @@ class ASR(sb.Brain):
             pad_idx=self.hparams.pad_index,
             chunk_masking=transformer_chunk_size
         )
+        # yolo_detect_nan(x, "enc")
         x = self.modules.proj_enc(x)
 
         e_in = self.modules.emb(tokens_with_bos)
@@ -316,15 +320,6 @@ class ASR(sb.Brain):
             )
             with open(self.hparams.wer_file, "w") as w:
                 self.wer_metric.write_stats(w)
-
-    def required_samples_for(self, transformer_chunk_size):
-        # FIXME: use real values from hparams
-        cnn_subsampling_factor = 4
-        stride_frames = 160
-
-        fbanks_required = transformer_chunk_size * cnn_subsampling_factor
-
-        return (fbanks_required - 1) * stride_frames
 
 def dataio_prepare(hparams):
     """This function prepares the datasets to be used in the brain class.

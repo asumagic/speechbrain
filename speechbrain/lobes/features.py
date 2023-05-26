@@ -96,6 +96,7 @@ class Fbank(torch.nn.Module):
         right_frames=5,
         win_length=25,
         hop_length=10,
+        center=True,
     ):
         super().__init__()
         self.deltas = deltas
@@ -110,6 +111,7 @@ class Fbank(torch.nn.Module):
             n_fft=n_fft,
             win_length=win_length,
             hop_length=hop_length,
+            center=center
         )
         self.compute_fbanks = Filterbank(
             sample_rate=sample_rate,

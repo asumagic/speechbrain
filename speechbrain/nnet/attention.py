@@ -359,6 +359,31 @@ class RelPosEncXL(nn.Module):
             return pe
 
 
+# TODO: move somewhere relevant
+# TODO: document
+# https://github.com/pytorch/pytorch/issues/55056
+def safe_softmax(x, dim: int = -1, eps: float = 1.0e-8):
+    # unfortunately this doesn't work for us as (-inf - (-inf)) is NaN
+    # # PyTorch softmax kernels subtract the max to improve numerical stability
+    # x = x - torch.max(x, dim=dim, keepdim=True)[0]
+
+    # softmax = e^xi / sum((e^xj for j in dim) + eps)
+    ex = torch.exp(x)
+
+    # FIXME: softmax can apply over an arbitrary number of dims
+    # this, however, doesn't because of the max which only operates on one axis
+    # the sum is fine
+
+    # the +eps component ensures that the divisor is > 0
+    # otherwise, softmax([-inf] * n) output NaNs, as e^-inf ~= 0
+    # this is the "safety" part of this softmax implementation
+    # if PyTorch ever implements a kernel for this, feel free to replace this
+    # function when it becomes our minimal version requirement!
+    sum_ex = torch.sum(ex, dim=dim, keepdim=True)
+    return ex / (sum_ex + eps)
+
+
+
 class RelPosMHAXL(nn.Module):
     """ This class implements the relative multihead implementation similar to that in Transformer XL
     https://arxiv.org/pdf/1901.02860.pdf
@@ -622,7 +647,7 @@ class RelPosMHAXL(nn.Module):
                 key_padding_mask.view(bsz, 1, 1, klen), self.attn_fill_value,
             )
 
-        attn_score = F.softmax(attn_score, dim=-1)
+        attn_score = safe_softmax(attn_score, dim=-1)
         attn_score = self.dropout_att(attn_score)
         x = torch.matmul(
             attn_score, value.transpose(1, 2)
