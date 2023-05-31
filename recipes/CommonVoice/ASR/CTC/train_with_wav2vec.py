@@ -98,7 +98,7 @@ class ASR(sb.core.Brain):
                 with self.no_sync():
                     outputs = self.compute_forward(batch, sb.Stage.TRAIN)
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-                
+
             with self.no_sync(not should_step):
                 self.scaler.scale(
                     loss / self.grad_accumulation_factor
@@ -290,9 +290,7 @@ def dataio_prepare(hparams, tokenizer):
     @sb.utils.data_pipeline.takes("wav")
     @sb.utils.data_pipeline.provides("sig")
     def audio_pipeline(wav):
-        # info = torchaudio.info(wav)
-        from speechbrain.dataio.dataio import read_audio_info
-        info = read_audio_info(wav)
+        info = torchaudio.info(wav)
         sig = sb.dataio.dataio.read_audio(wav)
         resampled = torchaudio.transforms.Resample(
             info.sample_rate, hparams["sample_rate"],
