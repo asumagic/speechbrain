@@ -90,19 +90,21 @@ class ASR(sb.core.Brain):
         """Train the parameters given a single batch in input"""
         should_step = self.step % self.grad_accumulation_factor == 0
         # Managing automatic mixed precision
-        # TOFIX: CTC fine-tuning currently is unstable
-        # This is certainly due to CTC being done in fp16 instead of fp32
+        # TOFIX: Float16 unstable with wav2vec2
+        # This is coming from the convolution of the wav2vec2 feature extractor
+        # which is not stable with float16
         if self.auto_mix_prec:
-            with torch.cuda.amp.autocast():
+            with torch.autocast(device_type=torch.device(self.device).type):
                 with self.no_sync():
                     outputs = self.compute_forward(batch, sb.Stage.TRAIN)
-                loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
+            loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
+                
             with self.no_sync(not should_step):
                 self.scaler.scale(
                     loss / self.grad_accumulation_factor
                 ).backward()
-            if should_step:
 
+            if should_step:
                 if not self.hparams.wav2vec2.freeze:
                     self.scaler.unscale_(self.wav2vec_optimizer)
                 self.scaler.unscale_(self.model_optimizer)
@@ -112,15 +114,26 @@ class ASR(sb.core.Brain):
                             self.scaler.step(self.wav2vec_optimizer)
                     self.scaler.step(self.model_optimizer)
                 self.scaler.update()
-                self.zero_grad()
+                self.zero_grad(set_to_none=True)
                 self.optimizer_step += 1
         else:
-            # This is mandatory because HF models have a weird behavior with DDP
-            # on the forward pass
-            with self.no_sync():
-                outputs = self.compute_forward(batch, sb.Stage.TRAIN)
+            # Use bfloat16 instead of auto-mixed precision for wav2vec2 as it is
+            # more stable
+            if self.bfloat16_mix_prec:
+                with torch.autocast(
+                    device_type=torch.device(self.device).type,
+                    dtype=torch.bfloat16,
+                ):
+                    with self.no_sync():
+                        outputs = self.compute_forward(batch, sb.Stage.TRAIN)
+                loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
+            else:
+                # This is mandatory because HF models have a weird behavior with DDP
+                # on the forward pass
+                with self.no_sync():
+                    outputs = self.compute_forward(batch, sb.Stage.TRAIN)
 
-            loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
+                loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
             with self.no_sync(not should_step):
                 (loss / self.grad_accumulation_factor).backward()
@@ -277,7 +290,9 @@ def dataio_prepare(hparams, tokenizer):
     @sb.utils.data_pipeline.takes("wav")
     @sb.utils.data_pipeline.provides("sig")
     def audio_pipeline(wav):
-        info = torchaudio.info(wav)
+        # info = torchaudio.info(wav)
+        from speechbrain.dataio.dataio import read_audio_info
+        info = read_audio_info(wav)
         sig = sb.dataio.dataio.read_audio(wav)
         resampled = torchaudio.transforms.Resample(
             info.sample_rate, hparams["sample_rate"],
