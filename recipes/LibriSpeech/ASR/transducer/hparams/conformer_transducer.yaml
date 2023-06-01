@@ -39,7 +39,7 @@ test_csv:
    - !ref <output_folder>/test-clean.csv
    - !ref <output_folder>/test-other.csv
 skip_prep: False
-ckpt_interval_minutes: 15 # save checkpoint every N min
+ckpt_interval_minutes: 5 # save checkpoint every N min
 
 # Training parameters
 # To make Transformers converge, the global bath size should be large enough.
@@ -50,7 +50,7 @@ streaming: True
 auto_mix_prec: True
 number_of_epochs: 40
 warmup_steps: 25000
-num_workers: 4
+num_workers: 8
 batch_size_valid: 4
 lr: 0.0005
 weight_decay: 0.01
@@ -88,8 +88,8 @@ test_dataloader_opts:
 # This setup works well for V100 32GB GPU, adapts it to your needs.
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 250
-max_batch_len_val: 30 # we reduce it as the beam is much wider (VRAM)
+max_batch_len: 600
+max_batch_len_val: 50 # we reduce it as the beam is much wider (VRAM)
 num_bucket: 200
 
 dynamic_batch_sampler:

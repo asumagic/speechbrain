@@ -147,7 +147,7 @@ class ConvolutionModule(nn.Module):
             ), "Chunked convolution not supported with causal padding"
 
             chunk_left_context = self.padding
-            chunk_count = math.ceil(x.shape[1] / chunk_size)
+            chunk_count = int(math.ceil(x.shape[1] / chunk_size))
 
             applied_left_context = [
                 min(
@@ -300,7 +300,7 @@ class ConformerEncoderLayer(nn.Module):
         x,
         src_mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
-        pos_embs: Optional[torch.Tensor] = None,
+        pos_embs: torch.Tensor = None,
         chunk_size: Optional[int] = None,
         left_context_chunks: int = -1,
     ):
@@ -321,7 +321,7 @@ class ConformerEncoderLayer(nn.Module):
         """
         # TODO: cite paper for chunk size
         # TODO: document left frames
-        conv_mask = None
+        conv_mask: Optional[torch.Tensor] = None
         if src_key_padding_mask is not None:
             conv_mask = src_key_padding_mask.unsqueeze(-1)
         # ffn module

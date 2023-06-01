@@ -383,7 +383,6 @@ def safe_softmax(x, dim: int = -1, eps: float = 1.0e-8):
     return ex / (sum_ex + eps)
 
 
-
 class RelPosMHAXL(nn.Module):
     """ This class implements the relative multihead implementation similar to that in Transformer XL
     https://arxiv.org/pdf/1901.02860.pdf
@@ -572,29 +571,29 @@ class RelPosMHAXL(nn.Module):
                 key is value or torch.equal(key, value)
             ):
                 query, key, value = (
-                    nn.functional.linear(query, self.in_proj_weight)
+                    torch.nn.functional.linear(query, self.in_proj_weight)
                     .view(bsz, -1, self.num_heads, self.head_dim * 3)
                     .chunk(3, dim=-1)
                 )
             else:
                 qweight, kweight, vweight = self.in_proj_weight.chunk(3, dim=0)
-                query = nn.functional.linear(query, qweight).view(
+                query = torch.nn.functional.linear(query, qweight).view(
                     bsz, -1, self.num_heads, self.head_dim
                 )
-                key = nn.functional.linear(key, kweight).view(
+                key = torch.nn.functional.linear(key, kweight).view(
                     bsz, -1, self.num_heads, self.head_dim
                 )
-                value = nn.functional.linear(value, vweight).view(
+                value = torch.nn.functional.linear(value, vweight).view(
                     bsz, -1, self.num_heads, self.head_dim
                 )
         else:
             raise NotImplementedError
             query, key = (
-                nn.functional.linear(query, self.qk_proj_weight)
+                torch.nn.functional.linear(query, self.qk_proj_weight)
                 .view(bsz, -1, self.num_heads, self.head_dim * 2)
                 .chunk(2, dim=-1)
             )
-            value = nn.functional.linear(value, self.v_proj_weight).view(
+            value = torch.nn.functional.linear(value, self.v_proj_weight).view(
                 bsz, -1, self.num_heads, self.vhead_dim
             )
 
