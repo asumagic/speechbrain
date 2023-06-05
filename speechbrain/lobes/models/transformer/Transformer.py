@@ -100,7 +100,6 @@ class TransformerInterface(nn.Module):
         attention_type: Optional[str] = "regularMHA",
         max_length: Optional[int] = 2500,
         causal: Optional[bool] = False,
-        left_context_chunks: Optional[int] = -1,
         encoder_kdim: Optional[int] = None,
         encoder_vdim: Optional[int] = None,
         decoder_kdim: Optional[int] = None,
@@ -114,7 +113,6 @@ class TransformerInterface(nn.Module):
         self.encoder_vdim = encoder_vdim
         self.decoder_kdim = decoder_kdim
         self.decoder_vdim = decoder_vdim
-        self.left_context_chunks = left_context_chunks
 
         assert attention_type in ["regularMHA", "RelPosMHAXL"]
         assert positional_encoding in ["fixed_abs_sine", None]

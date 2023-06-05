@@ -79,27 +79,27 @@ class ASR(sb.Brain):
         # Forward pass
         current_epoch = self.hparams.epoch_counter.current
 
-        if (
-            self.hparams.streaming
-            and stage == sb.Stage.TRAIN
-            and torch.rand((1, )).item() < self.hparams.dynamic_chunk_thresh
-        ):
-            transformer_chunk_size = torch.randint(
-                self.hparams.dynamic_chunk_min,
-                self.hparams.dynamic_chunk_max + 1,
-                (1, )
-            ).item()
-            # print("tfx chunk size", transformer_chunk_size)
-        elif (
-            self.hparams.streaming
-            and stage == sb.Stage.VALID # HACK: should be test
-            and self.hparams.test_chunk_size != 0
-        ):
-            transformer_chunk_size = self.hparams.test_chunk_size
-        else:
-            transformer_chunk_size = None
-            # if stage == sb.Stage.TRAIN:
-            #     print("no stream this batch")
+        transformer_chunk_size = -1
+        left_context_size = -1
+        if self.hparams.streaming:
+            if stage == sb.Stage.TRAIN:
+                if torch.rand((1, )).item() < self.hparams.dynamic_chunk_thresh:
+                    transformer_chunk_size = torch.randint(
+                        self.hparams.dynamic_chunk_min,
+                        self.hparams.dynamic_chunk_max + 1,
+                        (1, )
+                    ).item()
+                    # print("tfx chunk size", transformer_chunk_size)
+                
+                if torch.rand((1, )).item() < self.hparams.dynamic_left_context_thresh:
+                    left_context_size = torch.randint(
+                        self.hparams.dynamic_left_context_min,
+                        self.hparams.dynamic_left_context_max + 1,
+                        (1, )
+                    ).item()
+            elif stage == sb.Stage.TEST:
+                transformer_chunk_size = self.hparams.test_chunk_size
+                left_context_size = self.hparams.test_left_context_size
 
         # logger.info(f"Batch uses tfx chunk size = {transformer_chunk_size}, frame chunk_size = {chunk_size}")
 
@@ -122,7 +122,8 @@ class ASR(sb.Brain):
             src,
             wav_lens,
             pad_idx=self.hparams.pad_index,
-            chunk_masking=transformer_chunk_size
+            chunk_size=transformer_chunk_size,
+            left_context_size=left_context_size
         )
         yolo_detect_nan(x, "enc")
         x = self.modules.proj_enc(x)

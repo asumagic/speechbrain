@@ -52,17 +52,24 @@ number_of_epochs: 40
 warmup_steps: 25000
 num_workers: 4
 batch_size_valid: 4
-lr: 0.0005 # manually lowered from 0.0005 after ~10 epochs (& turned amsgrad on)
+lr: 0.0005
 weight_decay: 0.01
 number_of_ctc_epochs: 40
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
 ce_weight: 0.0 # Multitask with CE for the decoder (0.0 = disabled)
 max_grad_norm: 5.0
 loss_reduction: 'batchmean'
+
+test_chunk_size: 8
+test_left_context_size: 64
+
 dynamic_chunk_thresh: 0.5
 dynamic_chunk_min: 4
 dynamic_chunk_max: 32
-test_chunk_size: 8
+
+dynamic_left_context_thresh: 0.75
+dynamic_left_context_min: 0
+dynamic_left_context_max: 64
 
 # Used if and only if dynamic batching is set to False
 batch_size: 8

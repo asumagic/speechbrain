@@ -104,7 +104,6 @@ class TransformerASR(TransformerInterface):
         attention_type: Optional[str] = "regularMHA",
         max_length: Optional[int] = 2500,
         causal: Optional[bool] = True,
-        left_context_chunks: Optional[int] = -1,
     ):
         super().__init__(
             d_model=d_model,
@@ -123,7 +122,6 @@ class TransformerASR(TransformerInterface):
             attention_type=attention_type,
             max_length=max_length,
             causal=causal,
-            left_context_chunks=left_context_chunks
         )
 
         self.custom_src_module = ModuleList(
@@ -155,7 +153,7 @@ class TransformerASR(TransformerInterface):
         pad_idx : int, optional
             The index for <pad> token (default=0).
         """
-        # FIXME: should have chunk_masking?
+        # FIXME: should have chunk_size & left_chunk_context?
 
         # reshpae the src vector to [Batch, Time, Fea] is a 4d vector is given
         if src.ndim == 4:
@@ -210,7 +208,7 @@ class TransformerASR(TransformerInterface):
 
         return encoder_out, decoder_out
 
-    def make_masks(self, src, tgt=None, wav_len=None, pad_idx=0, chunk_masking=None):
+    def make_masks(self, src, tgt=None, wav_len=None, pad_idx=0, chunk_size: int = -1, left_context_chunks: int = -1):
         """This method generates the masks for training the transformer model.
 
         Arguments
@@ -227,7 +225,7 @@ class TransformerASR(TransformerInterface):
             abs_len = torch.round(wav_len * src.shape[1])
             src_key_padding_mask = ~length_to_mask(abs_len).bool()
 
-        if chunk_masking is not None or self.left_context_chunks >= 0:
+        if chunk_size >= 0 or left_context_chunks >= 0:
             # wav_len unspecified? make a mask that masks nothing by default
             # 0 == no mask, 1 == mask
             src_mask = torch.zeros(
@@ -236,24 +234,24 @@ class TransformerASR(TransformerInterface):
                     dtype=torch.bool
                 )
 
-        if self.left_context_chunks >= 0:
+        if left_context_chunks >= 0:
             for i in range(src.shape[1]):
-                if chunk_masking is not None:
-                    current_chunk = (i // chunk_masking) * chunk_masking
-                    frame_remaining_context = max(0, current_chunk - self.left_context_chunks * chunk_masking)
+                if chunk_size >= 0:
+                    current_chunk = (i // chunk_size) * chunk_size
+                    frame_remaining_context = max(0, current_chunk - left_context_chunks * chunk_size)
                 else:
                     frame_remaining_context = 0
 
                 # end range is exclusive, so there is no off-by-one here
                 src_mask[i,:frame_remaining_context] = True
 
-        if chunk_masking is not None:
+        if chunk_size is not None:
             for i in range(src.shape[1]):
                 # if we have a chunk size of 8 then:
                 # for 0..7  -> mask 8..
                 # for 8..15 -> mask 16..
                 # etc.
-                visible_range = ((i // chunk_masking) + 1) * chunk_masking
+                visible_range = ((i // chunk_size) + 1) * chunk_size
                 src_mask[i, visible_range:] = True
         else:
             src_mask = None
@@ -307,7 +305,7 @@ class TransformerASR(TransformerInterface):
         )
         return prediction, multihead_attns[-1]
 
-    def encode(self, src, wav_len=None, pad_idx=0, chunk_masking=None):
+    def encode(self, src, wav_len=None, pad_idx=0, chunk_size=None, left_context_chunks: int = -1):
         """
         Encoder forward pass
 
@@ -324,7 +322,7 @@ class TransformerASR(TransformerInterface):
             src = src.reshape(bz, t, ch1 * ch2)
 
         (src_key_padding_mask, _, src_mask, _,) = self.make_masks(
-            src, None, wav_len, pad_idx=pad_idx, chunk_masking=chunk_masking
+            src, None, wav_len, pad_idx=pad_idx, chunk_size=chunk_size, left_context_chunks=left_context_chunks
         )
 
         src = self.custom_src_module(src)
@@ -340,7 +338,7 @@ class TransformerASR(TransformerInterface):
             src_mask=src_mask,
             src_key_padding_mask=src_key_padding_mask,
             pos_embs=pos_embs_source,
-            chunk_size=chunk_masking,
+            chunk_size=chunk_size,
         )
         return encoder_out
 
@@ -379,7 +377,7 @@ class EncoderWrapper(nn.Module):
         super().__init__(*args, **kwargs)
         self.transformer = transformer
 
-    def forward(self, x, wav_lens=None, pad_idx=0, chunk_masking=None):
+    def forward(self, x, wav_lens=None, pad_idx=0, chunk_size=-1):
         """ Processes the input tensor x and returns an output tensor."""
-        x = self.transformer.encode(x, wav_lens, pad_idx, chunk_masking=chunk_masking)
+        x = self.transformer.encode(x, wav_lens, pad_idx, chunk_size=chunk_size)
         return x

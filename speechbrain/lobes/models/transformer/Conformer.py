@@ -174,7 +174,7 @@ class ConvolutionModule(nn.Module):
                     0,
                     chunk_left_context - applied_left_context[i],  # left
                     self.padding  # right
-                ))
+                ), mode="reflect")
                 for i in range(len(out))
             ]
 
@@ -302,7 +302,6 @@ class ConformerEncoderLayer(nn.Module):
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: torch.Tensor = None,
         chunk_size: Optional[int] = None,
-        left_context_chunks: int = -1,
     ):
         """
         Arguments
@@ -444,7 +443,6 @@ class ConformerEncoder(nn.Module):
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: Optional[torch.Tensor] = None,
         chunk_size: Optional[int] = None,
-        left_context_chunks: int = -1,
     ):
         """
         Arguments
@@ -483,7 +481,6 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 pos_embs=pos_embs,
                 chunk_size=chunk_size,
-                left_context_chunks=left_context_chunks,
             )
             yolo_detect_nan(output, f"post layer # {i}")
             attention_lst.append(attention)
