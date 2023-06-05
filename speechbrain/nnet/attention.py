@@ -359,29 +359,6 @@ class RelPosEncXL(nn.Module):
             return pe
 
 
-# TODO: move somewhere relevant
-# TODO: document
-# https://github.com/pytorch/pytorch/issues/55056
-def safe_softmax(x, mask, dim: int = -1, eps: float = 1.0e-6):
-    # PyTorch softmax kernels subtract the max to improve numerical stability
-    x = x.to(torch.float32)  # can we do the max in fp16 safely?
-    x = x - torch.max(x, dim=dim, keepdim=True)[0]
-
-    # softmax = e^xi / sum((e^xj for j in dim) + eps)
-    ex = torch.exp(x)
-
-    if mask is not None:
-        ex = ex.masked_fill(~mask, 0.0)
-
-    # the +eps component ensures that the divisor is > 0
-    # otherwise, softmax([-inf] * n) output NaNs, as e^-inf ~= 0
-    # this is the "safety" part of this softmax implementation
-    # if PyTorch ever implements a kernel for this, feel free to replace this
-    # function when it becomes our minimal version requirement!
-    sum_ex = ex.sum(dim=dim, keepdim=True)
-    return ex / (sum_ex + eps)
-
-
 def yolo_detect_nan(v, txt):
     if v.isnan().count_nonzero().item() > 0:
         print(f"found nan in {txt}")#: {v}")
@@ -627,6 +604,7 @@ class RelPosMHAXL(nn.Module):
 
         # TODO: cite https://asherliu.github.io/docs/sc21a.pdf
         # for the scaling prior to the matrix multiplication 
+        # should read more of the paper though
         # TODO: check if this causes any difference beyond precision
         # (it does not seem like it does)
 
@@ -663,11 +641,6 @@ class RelPosMHAXL(nn.Module):
                 key_padding_mask.view(bsz, 1, 1, klen), self.attn_fill_value,
             )
 
-        # print(f"attn_score has {attn_score.isposinf().sum()} +inf; {attn_score.isneginf().sum()} -inf; {attn_score.isnan().sum()} NaN / {attn_score.numel()}")
-
-        # FIXME: inconsistent masking bs, we're not handling float masks rn 
-        # and we do duplicate work with the above otherwise
-        # attn_score = safe_softmax(attn_score, yolo_mask, dim=-1)
         attn_score = nn.functional.softmax(attn_score, dim=-1, dtype=torch.float32)
         yolo_detect_nan(attn_score, "attn: post softmax")
 
