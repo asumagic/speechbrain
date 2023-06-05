@@ -637,57 +637,8 @@ class Conv2d(nn.Module):
             )
 
         elif self.padding == "causal":
-            # padding alongside channel dimension
-            top_bottom_padding = get_padding_elem(
-                self.in_channels,
-                self.stride[-2],
-                self.kernel_size[-2],
-                self.dilation[-2]
-            )
-
-            # causal padding alongside time dimension
-            causal_left_padding = (self.kernel_size[0] - 1) * self.dilation[1]
-
-            # extra right padding may be required or we might ignore some frames
-            # otherwise
-
-            # conceptually, with a dilation factor > 1, you have
-            # (kernel_size - 1) "gaps" of (dilation - 1) elements.
-            # sum this with the kernel size and you get the "width" of a filter
-            window_width = (
-                self.kernel_size[-1]
-                + (self.dilation[-1] - 1) * (self.kernel_size[-1] - 1)
-            )
-
-            # consider an example where we already applied left causal padding.
-            # conv parameters for the time axis are:
-            # a kernel size of 3, a dilation of 2, a stride of 2:
-            #
-            # frames --------------->
-            # a b c d e f g h i j k l
-            # x . x . x
-            # <-------> window_width == 5
-            #     x . x . x
-            #         x . x . x
-            #             x . x . x
-            #                 x . x . ?
-
-            # how many strides can we "fit" excluding one window?
-            leftover_width = x.shape[-1] + causal_left_padding
-            while leftover_width >= window_width:
-                leftover_width -= self.stride[-2]
-
-            extra_right_padding = window_width - leftover_width
-
-            left_right_padding = [
-                causal_left_padding,
-                extra_right_padding
-            ]
-
-            # note: this is a list addition not an element-wise sum :)
-            padding = left_right_padding + top_bottom_padding
-
-            x = F.pad(x, padding)
+            num_pad = (self.kernel_size[0] - 1) * self.dilation[1]
+            x = F.pad(x, (0, 0, num_pad, 0))
 
         elif self.padding == "valid":
             pass
