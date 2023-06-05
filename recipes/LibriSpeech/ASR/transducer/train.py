@@ -89,6 +89,7 @@ class ASR(sb.Brain):
                 self.hparams.dynamic_chunk_max + 1,
                 (1, )
             ).item()
+            # print("tfx chunk size", transformer_chunk_size)
         elif (
             self.hparams.streaming
             and stage == sb.Stage.VALID # HACK: should be test
@@ -97,6 +98,8 @@ class ASR(sb.Brain):
             transformer_chunk_size = self.hparams.test_chunk_size
         else:
             transformer_chunk_size = None
+            # if stage == sb.Stage.TRAIN:
+            #     print("no stream this batch")
 
         # logger.info(f"Batch uses tfx chunk size = {transformer_chunk_size}, frame chunk_size = {chunk_size}")
 
@@ -530,14 +533,13 @@ if __name__ == "__main__":
         valid_dataloader_opts = {"batch_sampler": valid_bsampler}
 
     # Training
-    # with torch.autograd.detect_anomaly():
-        asr_brain.fit(
-            asr_brain.hparams.epoch_counter,
-            train_data,
-            valid_data,
-            train_loader_kwargs=train_dataloader_opts,
-            valid_loader_kwargs=valid_dataloader_opts,
-        )
+    asr_brain.fit(
+        asr_brain.hparams.epoch_counter,
+        train_data,
+        valid_data,
+        train_loader_kwargs=train_dataloader_opts,
+        valid_loader_kwargs=valid_dataloader_opts,
+    )
 
     # Testing
     for k in test_datasets.keys():  # keys are test_clean, test_other etc

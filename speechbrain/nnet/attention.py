@@ -362,25 +362,31 @@ class RelPosEncXL(nn.Module):
 # TODO: move somewhere relevant
 # TODO: document
 # https://github.com/pytorch/pytorch/issues/55056
-def safe_softmax(x, dim: int = -1, eps: float = 1.0e-8):
-    # unfortunately this doesn't work for us as (-inf - (-inf)) is NaN
-    # # PyTorch softmax kernels subtract the max to improve numerical stability
-    # x = x - torch.max(x, dim=dim, keepdim=True)[0]
+def safe_softmax(x, mask, dim: int = -1, eps: float = 1.0e-6):
+    # PyTorch softmax kernels subtract the max to improve numerical stability
+    x = x.to(torch.float32)  # can we do the max in fp16 safely?
+    x = x - torch.max(x, dim=dim, keepdim=True)[0]
 
     # softmax = e^xi / sum((e^xj for j in dim) + eps)
     ex = torch.exp(x)
 
-    # FIXME: softmax can apply over an arbitrary number of dims
-    # this, however, doesn't because of the max which only operates on one axis
-    # the sum is fine
+    if mask is not None:
+        ex = ex.masked_fill(~mask, 0.0)
 
     # the +eps component ensures that the divisor is > 0
     # otherwise, softmax([-inf] * n) output NaNs, as e^-inf ~= 0
     # this is the "safety" part of this softmax implementation
     # if PyTorch ever implements a kernel for this, feel free to replace this
     # function when it becomes our minimal version requirement!
-    sum_ex = torch.sum(ex, dim=dim, keepdim=True)
+    sum_ex = ex.sum(dim=dim, keepdim=True)
     return ex / (sum_ex + eps)
+
+
+def yolo_detect_nan(v, txt):
+    if v.isnan().count_nonzero().item() > 0:
+        print(f"found nan in {txt}")#: {v}")
+        from IPython.core.debugger import set_trace
+        set_trace()
 
 
 class RelPosMHAXL(nn.Module):
@@ -564,6 +570,7 @@ class RelPosMHAXL(nn.Module):
         bsz = query.shape[0]
         klen = key.shape[1]
         qlen = query.shape[1]
+        yolo_detect_nan(query, "attn: input is fucked")
 
         if self._qkv_same_embed_dim:
             # self-attention
@@ -575,6 +582,9 @@ class RelPosMHAXL(nn.Module):
                     .view(bsz, -1, self.num_heads, self.head_dim * 3)
                     .chunk(3, dim=-1)
                 )
+                yolo_detect_nan(query, "attn: q")
+                yolo_detect_nan(key, "attn: k")
+                yolo_detect_nan(value, "attn: v")
             else:
                 qweight, kweight, vweight = self.in_proj_weight.chunk(3, dim=0)
                 query = torch.nn.functional.linear(query, qweight).view(
@@ -615,17 +625,24 @@ class RelPosMHAXL(nn.Module):
             query + self.pos_bias_v.view(1, 1, self.num_heads, self.head_dim)
         ).transpose(1, 2)
 
+        # TODO: cite https://asherliu.github.io/docs/sc21a.pdf
+        # for the scaling prior to the matrix multiplication 
+        # TODO: check if this causes any difference beyond precision
+        # (it does not seem like it does)
+
         # (batch, head, qlen, klen)
-        matrix_ac = torch.matmul(q_with_bias_u, key.permute(0, 2, 3, 1))
+        matrix_ac = torch.matmul(q_with_bias_u * self.scale, key.permute(0, 2, 3, 1))
         # (batch, num_heads, klen, 2*klen-1)
-        matrix_bd = torch.matmul(q_with_bias_v, p_k.permute(0, 2, 3, 1))
+        matrix_bd = torch.matmul(q_with_bias_v * self.scale, p_k.permute(0, 2, 3, 1))
         matrix_bd = self.rel_shift(matrix_bd)  # shifting trick
 
         # if klen != qlen:
         #   import ipdb
         #  ipdb.set_trace(
 
-        attn_score = (matrix_ac + matrix_bd) * self.scale
+        attn_score = (matrix_ac + matrix_bd) # already scaled above
+
+        yolo_detect_nan(attn_score, "attn: post attn score")
 
         # compute attention probability
         if attn_mask is not None:
@@ -646,11 +663,20 @@ class RelPosMHAXL(nn.Module):
                 key_padding_mask.view(bsz, 1, 1, klen), self.attn_fill_value,
             )
 
-        attn_score = safe_softmax(attn_score, dim=-1)
+        # print(f"attn_score has {attn_score.isposinf().sum()} +inf; {attn_score.isneginf().sum()} -inf; {attn_score.isnan().sum()} NaN / {attn_score.numel()}")
+
+        # FIXME: inconsistent masking bs, we're not handling float masks rn 
+        # and we do duplicate work with the above otherwise
+        # attn_score = safe_softmax(attn_score, yolo_mask, dim=-1)
+        attn_score = nn.functional.softmax(attn_score, dim=-1, dtype=torch.float32)
+        yolo_detect_nan(attn_score, "attn: post softmax")
+
         attn_score = self.dropout_att(attn_score)
         x = torch.matmul(
             attn_score, value.transpose(1, 2)
         )  # (batch, head, time1, d_k)
+        yolo_detect_nan(attn_score, "attn: post value mul")
+
         x = (
             x.transpose(1, 2)
             .contiguous()
@@ -658,6 +684,7 @@ class RelPosMHAXL(nn.Module):
         )  # (batch, time1, d_model)
 
         out = self.out_proj(x)
+        yolo_detect_nan(attn_score, "attn: final proj")
         if return_attn_weights:
             return out, attn_score
         return out

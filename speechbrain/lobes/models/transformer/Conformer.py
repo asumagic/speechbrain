@@ -321,14 +321,23 @@ class ConformerEncoderLayer(nn.Module):
         """
         # TODO: cite paper for chunk size
         # TODO: document left frames
+
+        def yolo_detect_nan(v, txt):
+            if v.isnan().count_nonzero().item() > 0:
+                print(f"found nan in {txt}: {v}")
+
         conv_mask: Optional[torch.Tensor] = None
         if src_key_padding_mask is not None:
             conv_mask = src_key_padding_mask.unsqueeze(-1)
         # ffn module
+        yolo_detect_nan(x, "pre ffn")
         x = x + 0.5 * self.ffn_module1(x)
         # muti-head attention module
         skip = x
+        yolo_detect_nan(x, "pre norm")
         x = self.norm1(x)
+
+        yolo_detect_nan(x, "pre mha")
         x, self_attn = self.mha_layer(
             x,
             x,
@@ -337,10 +346,13 @@ class ConformerEncoderLayer(nn.Module):
             key_padding_mask=src_key_padding_mask,
             pos_embs=pos_embs,
         )
+        yolo_detect_nan(x, "pre skip")
         x = x + skip
         # convolution module
+        yolo_detect_nan(x, "pre conv")
         x = x + self.convolution_module(x, conv_mask, chunk_size=chunk_size)
         # ffn module
+        yolo_detect_nan(x, "pre norm2")
         x = self.norm2(x + 0.5 * self.ffn_module2(x))
         return x, self_attn
 
@@ -451,6 +463,9 @@ class ConformerEncoder(nn.Module):
             Whether to preform convolution chunking to hide future context,
             useful for chunked conformers in a dynamic chunk training setting
         """
+        def yolo_detect_nan(v, txt):
+            if v.isnan().count_nonzero().item() > 0:
+                print(f"found nan in {txt}: {v}")
 
         if self.attention_type == "RelPosMHAXL":
             if pos_embs is None:
@@ -458,9 +473,10 @@ class ConformerEncoder(nn.Module):
                     "The chosen attention type for the Conformer is RelPosMHAXL. For this attention type, the positional embeddings are mandatory"
                 )
 
+        yolo_detect_nan(src, "src in whole enc")
         output = src
         attention_lst = []
-        for enc_layer in self.layers:
+        for i, enc_layer in enumerate(self.layers):
             output, attention = enc_layer(
                 output,
                 src_mask=src_mask,
@@ -469,6 +485,7 @@ class ConformerEncoder(nn.Module):
                 chunk_size=chunk_size,
                 left_context_chunks=left_context_chunks,
             )
+            yolo_detect_nan(output, f"post layer # {i}")
             attention_lst.append(attention)
         output = self.norm(output)
 
