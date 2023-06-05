@@ -103,30 +103,6 @@ class ASR(sb.Brain):
 
         # logger.info(f"Batch uses tfx chunk size = {transformer_chunk_size}, frame chunk_size = {chunk_size}")
 
-        if self.hparams.streaming:
-            # STFT center=False? Apply manual padding
-
-            # If we left align the conv then it looks at 0..win_size
-            # So, we need to add win_size/2 of zero left padding
-            # At train time, we need to add padding to the right so that last frame looks at win_size/2 of padding
-            
-            # Thus if we have n input frames we need to fit half a window + as many strides as we can.
-            # If there's any leftover then we need to pad enough to fit a stride.
-
-            # TODO: non hardcoded
-            win_size = 400
-            win_stride = 160
-
-            left_padding = (win_size // 2) + 40  # TODO: why 40?? 1 stride*cnn stride?
-            right_remaining_frames = (wavs.shape[1] - (win_size // 2)) % win_stride
-            if right_remaining_frames > 0:
-                right_padding = win_stride - right_remaining_frames
-            else:
-                right_padding = 0
-
-            wavs = torch.nn.functional.pad(wavs, [left_padding, right_padding])
-        # logger.info(f"Batch uses tfx chunk size = {transformer_chunk_size}, frame chunk_size = {chunk_size}")
-
         yolo_detect_nan(wavs, "post streaming pad (if any)")
 
         feats = self.hparams.compute_features(wavs)
