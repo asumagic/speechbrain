@@ -111,7 +111,7 @@ class ConvolutionModule(nn.Module):
             # let's keep backwards compat by pointing at the weights from the
             # already declared Conv1d.
 
-            # we do not nede to edit bottleneck as it is pointwise (i.e. time
+            # we do not need to edit bottleneck as it is pointwise (i.e. time
             # step by time step), thus, it doesn't need padding along the
             # time dimension
             out = F.conv1d(
