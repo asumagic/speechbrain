@@ -63,12 +63,15 @@ loss_reduction: 'batchmean'
 test_chunk_size: 8
 test_left_context_size: 64
 
+valid_chunk_size: -1
+valid_left_context_size: -1
+
 dynamic_chunk_thresh: 0.5
-dynamic_chunk_min: 4
+dynamic_chunk_min: 8
 dynamic_chunk_max: 32
 
 dynamic_left_context_thresh: 0.75
-dynamic_left_context_min: 0
+dynamic_left_context_min: 16
 dynamic_left_context_max: 64
 
 # Used if and only if dynamic batching is set to False
@@ -95,7 +98,7 @@ test_dataloader_opts:
 # This setup works well for V100 32GB GPU, adapts it to your needs.
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 600
+max_batch_len: 250
 max_batch_len_val: 50 # we reduce it as the beam is much wider (VRAM)
 num_bucket: 200
 
@@ -176,7 +179,6 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    dilations: [[1, 1], [1, 1]]
    residuals: (False, False)
    padding: same
-   padding_mode: constant # FIXME: no way to provide constant etc.
 
 Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR # yamllint disable-line rule:line-length
    input_size: 1280
@@ -192,9 +194,6 @@ Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.Transforme
    attention_type: RelPosMHAXL
    normalize_before: True
    causal: False
-   # TODO: could support list form, if eg the user wanted to enlarge context on
-   # the last few layers or whatever
-   left_context_chunks: 64 # in transformer chunks to cache
 
 # We must call an encoder wrapper so the decoder isn't run (we don't have any)
 enc: !new:speechbrain.lobes.models.transformer.TransformerASR.EncoderWrapper

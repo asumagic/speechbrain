@@ -229,10 +229,10 @@ class TransformerASR(TransformerInterface):
             # wav_len unspecified? make a mask that masks nothing by default
             # 0 == no mask, 1 == mask
             src_mask = torch.zeros(
-                    (src.shape[1], src.shape[1]),
-                    device=src.device,
-                    dtype=torch.bool
-                )
+                (src.shape[1], src.shape[1]),
+                device=src.device,
+                dtype=torch.bool
+            )
 
         if left_context_chunks >= 0:
             for i in range(src.shape[1]):
@@ -245,7 +245,7 @@ class TransformerASR(TransformerInterface):
                 # end range is exclusive, so there is no off-by-one here
                 src_mask[i,:frame_remaining_context] = True
 
-        if chunk_size is not None:
+        if chunk_size >= 0:
             for i in range(src.shape[1]):
                 # if we have a chunk size of 8 then:
                 # for 0..7  -> mask 8..
@@ -377,7 +377,7 @@ class EncoderWrapper(nn.Module):
         super().__init__(*args, **kwargs)
         self.transformer = transformer
 
-    def forward(self, x, wav_lens=None, pad_idx=0, chunk_size=-1):
+    def forward(self, x, wav_lens=None, pad_idx=0, chunk_size=-1, left_context_chunks=-1):
         """ Processes the input tensor x and returns an output tensor."""
-        x = self.transformer.encode(x, wav_lens, pad_idx, chunk_size=chunk_size)
+        x = self.transformer.encode(x, wav_lens, pad_idx, chunk_size=chunk_size, left_context_chunks=left_context_chunks)
         return x

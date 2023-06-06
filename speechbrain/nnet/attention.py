@@ -362,8 +362,8 @@ class RelPosEncXL(nn.Module):
 def yolo_detect_nan(v, txt):
     if v.isnan().count_nonzero().item() > 0:
         print(f"found nan in {txt}")#: {v}")
-        from IPython.core.debugger import set_trace
-        set_trace()
+        # from IPython.core.debugger import set_trace
+        # set_trace()
 
 
 class RelPosMHAXL(nn.Module):
@@ -642,6 +642,23 @@ class RelPosMHAXL(nn.Module):
             )
 
         attn_score = nn.functional.softmax(attn_score, dim=-1, dtype=torch.float32)
+
+        # it is possible for us to hit full NaN when using chunked training
+        # so reapply masks, except with 0.0 instead as we are after the softmax
+        # because -inf would output 0.0 regardless anyway
+        if attn_mask is not None:
+            if attn_mask.dtype == torch.bool:
+                attn_score = attn_score.masked_fill(
+                    attn_mask, 0.0
+                )
+            else:
+                assert False, "oopsie need to reimplement that"
+
+        if key_padding_mask is not None:
+            attn_score = attn_score.masked_fill(
+                key_padding_mask.view(bsz, 1, 1, klen), 0.0,
+            )
+
         yolo_detect_nan(attn_score, "attn: post softmax")
 
         attn_score = self.dropout_att(attn_score)

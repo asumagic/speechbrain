@@ -131,7 +131,7 @@ class ConvolutionModule(nn.Module):
         out = self.after_conv(out)
         return out
 
-    def forward(self, x, mask=None, chunk_size=None):
+    def forward(self, x, mask=None, chunk_size=-1):
         """ Processes the input tensor x and returns the output an output tensor"""
 
         # ref: Dynamic chunk convolution for unified streaming and non-streaming
@@ -139,7 +139,7 @@ class ConvolutionModule(nn.Module):
         # https://www.amazon.science/publications/dynamic-chunk-convolution-for-unified-streaming-and-non-streaming-conformer-asr
         # split the input into chunks of size `chunk_size`, but for each chunk
         # provide a left context for left chunk dependencies to be possible.
-        if chunk_size is not None:
+        if chunk_size >= 1:
             # chances are chunking+causal is unintended; i don't know where it
             # may make sense, but if it does to you, feel free to implement it.
             assert (
@@ -168,13 +168,15 @@ class ConvolutionModule(nn.Module):
             # add missing left padding (if we don't have enough context)
             # add right padding (as we disable default padding, which is
             # forcefully bidirectional)
+            # TODO: experiment around reflect padding, which is difficult
+            # because small chunks have too little time steps to reflect from
             out = [
                 F.pad(out[i], (
                     0,
                     0,
                     chunk_left_context - applied_left_context[i],  # left
                     self.padding  # right
-                ), mode="reflect")
+                ))
                 for i in range(len(out))
             ]
 
