@@ -43,11 +43,6 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Define training procedure
-
-def yolo_detect_nan(v, txt):
-    if v.isnan().count_nonzero().item() > 0:
-        print(f"found nan in {txt}: {v}")
-
 class ASR(sb.Brain):
     def compute_forward(self, batch, stage):
         """Forward computations from the waveform batches to the output probabilities."""
@@ -56,8 +51,6 @@ class ASR(sb.Brain):
         tokens_with_bos, token_with_bos_lens = batch.tokens_bos
 
         # torch.set_printoptions(edgeitems=20)
-
-        yolo_detect_nan(wavs, "orig wav")
 
         # Add env corruption if specified
         if stage == sb.Stage.TRAIN:
@@ -73,8 +66,6 @@ class ASR(sb.Brain):
                     [token_with_bos_lens, token_with_bos_lens]
                 )
                 batch.tokens_bos = tokens_with_bos, token_with_bos_lens
-
-        yolo_detect_nan(wavs, "post corrupt")
 
         # Forward pass
         current_epoch = self.hparams.epoch_counter.current
@@ -106,12 +97,8 @@ class ASR(sb.Brain):
 
         # logger.info(f"Batch uses tfx chunk size = {transformer_chunk_size}, frame chunk_size = {chunk_size}")
 
-        yolo_detect_nan(wavs, "post streaming pad (if any)")
-
         feats = self.hparams.compute_features(wavs)
-        yolo_detect_nan(feats, "feats")
         feats = self.modules.normalize(feats, wav_lens, epoch=current_epoch)
-        yolo_detect_nan(feats, "norm")
 
         if stage == sb.Stage.TRAIN:
             if hasattr(self.hparams, "augmentation"):
@@ -119,7 +106,6 @@ class ASR(sb.Brain):
 
         # print(f"post aug has shape {feats.shape}")
         src = self.modules.CNN(feats)
-        yolo_detect_nan(src, "downsampling cnn")
 
         x = self.modules.enc(
             src,
@@ -128,7 +114,6 @@ class ASR(sb.Brain):
             chunk_size=transformer_chunk_size,
             left_context_chunks=left_context_chunks
         )
-        yolo_detect_nan(x, "enc")
         x = self.modules.proj_enc(x)
 
         e_in = self.modules.emb(tokens_with_bos)
@@ -152,12 +137,10 @@ class ASR(sb.Brain):
                 # Output layer for ctc log-probabilities
                 out_ctc = self.modules.proj_ctc(x)
                 p_ctc = self.hparams.log_softmax(out_ctc)
-                yolo_detect_nan(x, "in ctc")
             if self.hparams.ce_weight > 0.0:
                 # Output layer for ctc log-probabilities
                 p_ce = self.modules.dec_lin(h)
                 p_ce = self.hparams.log_softmax(p_ce)
-                yolo_detect_nan(x, "in ce")
 
             return p_ctc, p_ce, logits_transducer, wav_lens
 
@@ -216,8 +199,6 @@ class ASR(sb.Brain):
             loss = self.hparams.transducer_cost(
                 logits_transducer, tokens, wav_lens, token_lens
             )
-
-        yolo_detect_nan(loss, "final loss")
 
         if stage != sb.Stage.TRAIN:
             # Decode token terms to words

@@ -359,13 +359,6 @@ class RelPosEncXL(nn.Module):
             return pe
 
 
-def yolo_detect_nan(v, txt):
-    if v.isnan().count_nonzero().item() > 0:
-        print(f"found nan in {txt}")#: {v}")
-        # from IPython.core.debugger import set_trace
-        # set_trace()
-
-
 class RelPosMHAXL(nn.Module):
     """ This class implements the relative multihead implementation similar to that in Transformer XL
     https://arxiv.org/pdf/1901.02860.pdf
@@ -547,7 +540,6 @@ class RelPosMHAXL(nn.Module):
         bsz = query.shape[0]
         klen = key.shape[1]
         qlen = query.shape[1]
-        yolo_detect_nan(query, "attn: input is fucked")
 
         if self._qkv_same_embed_dim:
             # self-attention
@@ -559,9 +551,6 @@ class RelPosMHAXL(nn.Module):
                     .view(bsz, -1, self.num_heads, self.head_dim * 3)
                     .chunk(3, dim=-1)
                 )
-                yolo_detect_nan(query, "attn: q")
-                yolo_detect_nan(key, "attn: k")
-                yolo_detect_nan(value, "attn: v")
             else:
                 qweight, kweight, vweight = self.in_proj_weight.chunk(3, dim=0)
                 query = torch.nn.functional.linear(query, qweight).view(
@@ -620,8 +609,6 @@ class RelPosMHAXL(nn.Module):
 
         attn_score = (matrix_ac + matrix_bd) # already scaled above
 
-        yolo_detect_nan(attn_score, "attn: post attn score")
-
         # compute attention probability
         if attn_mask is not None:
             if attn_mask.ndim == 2:
@@ -659,14 +646,10 @@ class RelPosMHAXL(nn.Module):
                 key_padding_mask.view(bsz, 1, 1, klen), 0.0,
             )
 
-        yolo_detect_nan(attn_score, "attn: post softmax")
-
         attn_score = self.dropout_att(attn_score)
         x = torch.matmul(
             attn_score, value.transpose(1, 2)
         )  # (batch, head, time1, d_k)
-        yolo_detect_nan(attn_score, "attn: post value mul")
-
         x = (
             x.transpose(1, 2)
             .contiguous()
@@ -674,7 +657,6 @@ class RelPosMHAXL(nn.Module):
         )  # (batch, time1, d_model)
 
         out = self.out_proj(x)
-        yolo_detect_nan(attn_score, "attn: final proj")
         if return_attn_weights:
             return out, attn_score
         return out
