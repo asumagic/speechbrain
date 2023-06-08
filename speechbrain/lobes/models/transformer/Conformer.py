@@ -461,7 +461,7 @@ class ConformerEncoder(nn.Module):
 
         output = src
         attention_lst = []
-        for i, enc_layer in enumerate(self.layers):
+        for enc_layer in self.layers:
             output, attention = enc_layer(
                 output,
                 src_mask=src_mask,

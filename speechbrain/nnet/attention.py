@@ -471,7 +471,7 @@ class RelPosMHAXL(nn.Module):
 
         b, h, qlen, pos_len = x.size()  # (b, h, t1, t2)
         # need to add a column of zeros on the left side of last dimension to perform the relative shifting
-        x = torch.nn.functional.pad(x, pad=(1, 0))  # (b, h, t1, t2+1)
+        x = F.pad(x, pad=(1, 0))  # (b, h, t1, t2+1)
         x = x.view(b, h, -1, qlen)  # (b, h, t2+1, t1)
         # need to drop the first row
         x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
@@ -547,29 +547,29 @@ class RelPosMHAXL(nn.Module):
                 key is value or torch.equal(key, value)
             ):
                 query, key, value = (
-                    torch.nn.functional.linear(query, self.in_proj_weight)
+                    F.linear(query, self.in_proj_weight)
                     .view(bsz, -1, self.num_heads, self.head_dim * 3)
                     .chunk(3, dim=-1)
                 )
             else:
                 qweight, kweight, vweight = self.in_proj_weight.chunk(3, dim=0)
-                query = torch.nn.functional.linear(query, qweight).view(
+                query = F.linear(query, qweight).view(
                     bsz, -1, self.num_heads, self.head_dim
                 )
-                key = torch.nn.functional.linear(key, kweight).view(
+                key = F.linear(key, kweight).view(
                     bsz, -1, self.num_heads, self.head_dim
                 )
-                value = torch.nn.functional.linear(value, vweight).view(
+                value = F.linear(value, vweight).view(
                     bsz, -1, self.num_heads, self.head_dim
                 )
         else:
             raise NotImplementedError
             query, key = (
-                torch.nn.functional.linear(query, self.qk_proj_weight)
+                Fl.linear(query, self.qk_proj_weight)
                 .view(bsz, -1, self.num_heads, self.head_dim * 2)
                 .chunk(2, dim=-1)
             )
-            value = torch.nn.functional.linear(value, self.v_proj_weight).view(
+            value = F.linear(value, self.v_proj_weight).view(
                 bsz, -1, self.num_heads, self.vhead_dim
             )
 
@@ -628,7 +628,7 @@ class RelPosMHAXL(nn.Module):
                 key_padding_mask.view(bsz, 1, 1, klen), self.attn_fill_value,
             )
 
-        attn_score = nn.functional.softmax(attn_score, dim=-1, dtype=torch.float32)
+        attn_score = F.softmax(attn_score, dim=-1, dtype=torch.float32)
 
         # it is possible for us to hit full NaN when using chunked training
         # so reapply masks, except with 0.0 instead as we are after the softmax

@@ -36,7 +36,6 @@ import torch
 import logging
 import speechbrain as sb
 from speechbrain.utils.distributed import run_on_main
-from speechbrain.utils.streaming import chunkify_sequence, chunked_wav_lens, merge_chunks
 from hyperpyyaml import load_hyperpyyaml
 from pathlib import Path
 
@@ -49,8 +48,6 @@ class ASR(sb.Brain):
         batch = batch.to(self.device)
         wavs, wav_lens = batch.sig
         tokens_with_bos, token_with_bos_lens = batch.tokens_bos
-
-        # torch.set_printoptions(edgeitems=20)
 
         # Add env corruption if specified
         if stage == sb.Stage.TRAIN:
