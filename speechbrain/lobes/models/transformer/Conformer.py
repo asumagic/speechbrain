@@ -146,9 +146,18 @@ class ConvolutionModule(nn.Module):
                 not self.causal
             ), "Chunked convolution not supported with causal padding"
 
+            batch_size = x.shape[0]
             chunk_left_context = self.padding
+
             chunk_count = int(math.ceil(x.shape[1] / chunk_size))
 
+            if x.shape[1] % chunk_size != 0:
+                final_right_padding = chunk_size - (x.shape[1] % chunk_size)
+            else:
+                final_right_padding = 0
+
+            # compute the left context that can and should be added, for each
+            # chunk. for the first few chunks, we will need to add extra padding
             applied_left_context = [
                 min(
                     chunk_left_context,
@@ -157,7 +166,7 @@ class ConvolutionModule(nn.Module):
                 for i in range(chunk_count)
             ]
 
-            # add left context
+            # build views of chunks with left context (but no 0-padding yet)
             # the left context effectively becomes "left padding", we do not
             # want to keep any convolution results centered on the left context
             out = [
@@ -165,27 +174,43 @@ class ConvolutionModule(nn.Module):
                 for i in range(chunk_count)
             ]
 
-            # add missing left padding (if we don't have enough context)
-            # add right padding (as we disable default padding, which is
-            # forcefully bidirectional)
             # TODO: experiment around reflect padding, which is difficult
             # because small chunks have too little time steps to reflect from
             out = [
                 F.pad(out[i], (
+                    # channel dims, we do not to pad these
                     0,
                     0,
-                    chunk_left_context - applied_left_context[i],  # left
-                    self.padding  # right
+                    # add missing left 0-padding if we lacked left context
+                    chunk_left_context - applied_left_context[i],
+                    # add missing right 0-padding as we disable default padding
+                    # also add missing frames of the rightmost chunk
+                    self.padding + (final_right_padding if i == len(out) - 1 else 0)
                 ))
                 for i in range(len(out))
             ]
 
-            # usual, but chunk-wise processing
-            out = [
-                self._do_conv(chunk, inhibit_padding=True) for chunk in out
-            ]
+            # we pack together chunks in a single tensor so that we can feed it
+            # to the convolution directly.
 
-            out = torch.cat(out, 1)
+            # -> [batch_size, num_chunks, chunk_size + lc + rpad, in_channels]
+            out = torch.stack(out, dim=1)
+
+            # -> [batch_size * num_chunks, chunk_size + lc + rpad, in_channels]
+            out = torch.flatten(out, end_dim=1)
+
+            # -> [batch_size * num_chunks, chunk_size, out_channels]
+            out = self._do_conv(out, inhibit_padding=True)
+
+            # -> [batch_size, num_chunks, chunk_size, out_channels]
+            out = torch.unflatten(out, dim=0, sizes=(batch_size, -1))
+
+            # -> [batch_size, time_steps + extra right padding, out_channels]
+            out = torch.flatten(out, start_dim=1, end_dim=2)
+
+            # -> [batch_size, time_steps, out_channels]
+            if final_right_padding > 0:
+                out = out[:,:-final_right_padding,:]
         else:
             out = self._do_conv(x, inhibit_padding=False)
 
