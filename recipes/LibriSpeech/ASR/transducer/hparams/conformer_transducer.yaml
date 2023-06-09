@@ -117,7 +117,7 @@ dynamic_batch_sampler:
 d_model: 512
 joint_dim: 768
 nhead: 8
-num_encoder_layers: 12
+num_encoder_layers: 20
 num_decoder_layers: 0
 d_ffn: 2048
 transformer_dropout: 0.1
