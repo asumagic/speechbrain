@@ -46,7 +46,6 @@ ckpt_interval_minutes: 5 # save checkpoint every N min
 # The global batch size is computed as batch_size * n_gpus * gradient_accumulation.
 # Empirically, we found that this value should be >= 128.
 # Please, set your parameters accordingly.
-streaming: True
 auto_mix_prec: True
 number_of_epochs: 40
 warmup_steps: 25000
@@ -60,13 +59,16 @@ ce_weight: 0.0 # Multitask with CE for the decoder (0.0 = disabled)
 max_grad_norm: 5.0
 loss_reduction: 'batchmean'
 
+# Streaming & dynamic chunk training options
+streaming: True  # disables all DCT & chunk size & left context mechanisms
+
 test_chunk_size: 8
 test_left_context_size: 64
 
 valid_chunk_size: -1
 valid_left_context_size: -1
 
-dynamic_chunk_thresh: 0.5
+dynamic_chunk_thresh: 0.6
 dynamic_chunk_min: 8
 dynamic_chunk_max: 32
 
