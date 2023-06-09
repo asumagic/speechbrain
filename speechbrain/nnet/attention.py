@@ -565,7 +565,7 @@ class RelPosMHAXL(nn.Module):
         else:
             raise NotImplementedError
             query, key = (
-                Fl.linear(query, self.qk_proj_weight)
+                F.linear(query, self.qk_proj_weight)
                 .view(bsz, -1, self.num_heads, self.head_dim * 2)
                 .chunk(2, dim=-1)
             )
