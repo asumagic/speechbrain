@@ -60,7 +60,7 @@ max_grad_norm: 5.0
 loss_reduction: 'batchmean'
 
 # Streaming & dynamic chunk training options
-streaming: True  # disables all DCT & chunk size & left context mechanisms
+streaming: False  # disables all DCT & chunk size & left context mechanisms
 
 test_chunk_size: 8
 test_left_context_size: 64
@@ -116,7 +116,7 @@ dynamic_batch_sampler:
 # Transformer
 d_model: 512
 joint_dim: 768
-nhead: 4
+nhead: 8
 num_encoder_layers: 12
 num_decoder_layers: 0
 d_ffn: 2048
