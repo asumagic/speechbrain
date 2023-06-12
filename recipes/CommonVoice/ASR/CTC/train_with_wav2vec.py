@@ -52,7 +52,6 @@ class ASR(sb.core.Brain):
 
         feats = self.modules.wav2vec2(wavs, wav_lens)
         x = self.modules.enc(feats)
-        # cast to fp32
         logits = self.modules.ctc_lin(x)
         p_ctc = self.hparams.log_softmax(logits)
 
