@@ -940,7 +940,7 @@ class Brain:
             loss = self.compute_objectives(outputs, batch, Stage.TRAIN)
 
             if self.check_loss_isfinite(loss):
-                self.clip_grad_norm()
+
                 valid_loss = True
                 self.valid_step += 1
 
@@ -952,7 +952,7 @@ class Brain:
                     ).backward()
                 if should_step:
                     self.scaler.unscale_(self.optimizer)
-                    self.clip_grad_norm()
+
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
                     self.zero_grad()
@@ -970,7 +970,7 @@ class Brain:
                 loss = self.compute_objectives(outputs, batch, Stage.TRAIN)
 
             if self.check_loss_isfinite(loss):
-                self.clip_grad_norm()
+
                 valid_loss = True
                 self.valid_step += 1
 
@@ -979,7 +979,7 @@ class Brain:
                 with self.no_sync(not should_step):
                     (loss / self.grad_accumulation_factor).backward()
                 if should_step:
-                    self.clip_grad_norm()
+
                     self.optimizer.step()
                     self.zero_grad()
                     self.optimizer_step += 1
@@ -1005,7 +1005,7 @@ class Brain:
         pass
 
     def check_loss_isfinite(self, loss):
-        """Check if gradients are finite.
+        """Check if loss is finite and clip gradients if necessary.
 
         Arguments
         ---------
@@ -1040,6 +1040,8 @@ class Brain:
                     "Patience not yet exhausted, ignoring this batch."
                 )
                 return False
+
+        self.clip_grad_norm()
 
         return True
 

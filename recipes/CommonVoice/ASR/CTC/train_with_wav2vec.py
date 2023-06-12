@@ -97,12 +97,10 @@ class ASR(sb.core.Brain):
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
             if self.check_loss_isfinite(loss):
-                self.clip_grad_norm()
                 valid_loss = True
                 self.valid_step += 1
 
             should_step = self.valid_step % self.grad_accumulation_factor == 0
-
             if valid_loss:
                 with self.no_sync(not should_step):
                     self.scaler.scale(
@@ -110,7 +108,6 @@ class ASR(sb.core.Brain):
                     ).backward()
 
                 if should_step:
-
                     if not self.hparams.wav2vec2.freeze:
                         self.scaler.unscale_(self.wav2vec_optimizer)
                     self.scaler.unscale_(self.model_optimizer)
@@ -124,8 +121,6 @@ class ASR(sb.core.Brain):
                     self.zero_grad(set_to_none=True)
                     self.optimizer_step += 1
         else:
-            # Use bfloat16 instead of auto-mixed precision for wav2vec2 as it is
-            # more stable
             if self.bfloat16_mix_prec:
                 with torch.autocast(
                     device_type=torch.device(self.device).type,
@@ -143,18 +138,15 @@ class ASR(sb.core.Brain):
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
             if self.check_loss_isfinite(loss):
-                self.clip_grad_norm()
                 valid_loss = True
                 self.valid_step += 1
 
             should_step = self.valid_step % self.grad_accumulation_factor == 0
-
             if valid_loss:
                 with self.no_sync(not should_step):
                     (loss / self.grad_accumulation_factor).backward()
                 if should_step:
                     if self.check_loss_isfinite(loss):
-                        self.clip_grad_norm()
                         if not self.hparams.wav2vec2.freeze:
                             if self.optimizer_step >= self.hparams.warmup_steps:
                                 self.wav2vec_optimizer.step()

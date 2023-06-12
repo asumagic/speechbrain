@@ -135,7 +135,7 @@ class ASR(sb.core.Brain):
             self.scaler.unscale_(self.model_optimizer)
 
             if self.check_loss_isfinite(loss):
-                self.clip_grad_norm()
+
                 if not self.hparams.wav2vec2.freeze:
                     self.scaler.step(self.wav2vec_optimizer)
                 self.scaler.step(self.model_optimizer)
@@ -148,7 +148,7 @@ class ASR(sb.core.Brain):
             loss.backward()
 
             if self.check_loss_isfinite(loss):
-                self.clip_grad_norm()
+
                 if not self.hparams.wav2vec2.freeze:
                     self.wav2vec_optimizer.step()
                 self.model_optimizer.step()

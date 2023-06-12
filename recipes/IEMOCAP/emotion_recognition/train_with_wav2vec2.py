@@ -54,7 +54,7 @@ class EmoIdBrain(sb.Brain):
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
         loss.backward()
         if self.check_loss_isfinite(loss):
-            self.clip_grad_norm()
+
             self.wav2vec2_optimizer.step()
             self.optimizer.step()
 

@@ -106,7 +106,7 @@ class ASR(sb.Brain):
                 self.scaler.unscale_(self.whisper_optimizer)
                 self.scaler.unscale_(self.model_optimizer)
                 if self.check_loss_isfinite(loss):
-                    self.clip_grad_norm()
+
                     if self.optimizer_step > self.hparams.warmup_steps:
                         # Here we added a warmup to the CTC encoder to make sure that
                         # it does not screw the whisper with too large gradients.
@@ -120,7 +120,7 @@ class ASR(sb.Brain):
             (loss / self.grad_accumulation_factor).backward()
             if should_step:
                 if self.check_loss_isfinite(loss):
-                    self.clip_grad_norm()
+
                     # Here we added a warmup to the CTC encoder to make sure that
                     # it does not screw the whisper with too large gradients.
                     if self.optimizer_step > self.hparams.warmup_steps:
