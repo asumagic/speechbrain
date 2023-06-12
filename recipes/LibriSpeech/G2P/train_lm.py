@@ -115,7 +115,7 @@ class LM(sb.core.Brain):
         if self.step % self.hparams.accu_steps == 0:
 
             # Gradient clipping & early stop if loss is not fini
-            self.check_gradients(loss)
+            self.check_loss_isfinite(loss)
 
             # Update the parameters
             self.optimizer.step()

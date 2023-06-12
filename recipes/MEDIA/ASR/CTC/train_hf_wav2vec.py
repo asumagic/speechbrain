@@ -93,7 +93,7 @@ class ASR(sb.core.Brain):
 
         # Propagate loss.
         loss.backward()
-        if self.check_gradients(loss):
+        if self.check_loss_isfinite(loss):
             self.optimizer_wav2vec.step()
             self.optimizer.step()
         self.optimizer_wav2vec.zero_grad()

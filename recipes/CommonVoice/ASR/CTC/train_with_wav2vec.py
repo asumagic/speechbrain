@@ -50,9 +50,9 @@ class ASR(sb.core.Brain):
             if hasattr(self.hparams, "augmentation"):
                 wavs = self.hparams.augmentation(wavs, wav_lens)
 
-        # Forward pass
         feats = self.modules.wav2vec2(wavs, wav_lens)
         x = self.modules.enc(feats)
+        # cast to fp32
         logits = self.modules.ctc_lin(x)
         p_ctc = self.hparams.log_softmax(logits)
 
@@ -88,34 +88,41 @@ class ASR(sb.core.Brain):
 
     def fit_batch(self, batch):
         """Train the parameters given a single batch in input"""
-        should_step = self.step % self.grad_accumulation_factor == 0
+        valid_loss = False
         # Managing automatic mixed precision
-        # TOFIX: Float16 unstable with wav2vec2
-        # This is coming from the convolution of the wav2vec2 feature extractor
-        # which is not stable with float16
         if self.auto_mix_prec:
             with torch.autocast(device_type=torch.device(self.device).type):
                 with self.no_sync():
                     outputs = self.compute_forward(batch, sb.Stage.TRAIN)
+
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
-            with self.no_sync(not should_step):
-                self.scaler.scale(
-                    loss / self.grad_accumulation_factor
-                ).backward()
+            if self.check_loss_isfinite(loss):
+                valid_loss = True
+                self.valid_step += 1
 
-            if should_step:
-                if not self.hparams.wav2vec2.freeze:
-                    self.scaler.unscale_(self.wav2vec_optimizer)
-                self.scaler.unscale_(self.model_optimizer)
-                if self.check_gradients(loss):
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+
+            if valid_loss:
+                with self.no_sync(not should_step):
+                    self.scaler.scale(
+                        loss / self.grad_accumulation_factor
+                    ).backward()
+
+                if should_step:
+
+                    if not self.hparams.wav2vec2.freeze:
+                        self.scaler.unscale_(self.wav2vec_optimizer)
+                    self.scaler.unscale_(self.model_optimizer)
+
                     if not self.hparams.wav2vec2.freeze:
                         if self.optimizer_step >= self.hparams.warmup_steps:
                             self.scaler.step(self.wav2vec_optimizer)
                     self.scaler.step(self.model_optimizer)
-                self.scaler.update()
-                self.zero_grad(set_to_none=True)
-                self.optimizer_step += 1
+
+                    self.scaler.update()
+                    self.zero_grad(set_to_none=True)
+                    self.optimizer_step += 1
         else:
             # Use bfloat16 instead of auto-mixed precision for wav2vec2 as it is
             # more stable
@@ -135,16 +142,23 @@ class ASR(sb.core.Brain):
 
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
-            with self.no_sync(not should_step):
-                (loss / self.grad_accumulation_factor).backward()
-            if should_step:
-                if self.check_gradients(loss):
-                    if not self.hparams.wav2vec2.freeze:
-                        if self.optimizer_step >= self.hparams.warmup_steps:
-                            self.wav2vec_optimizer.step()
-                    self.model_optimizer.step()
-                self.zero_grad()
-                self.optimizer_step += 1
+            if self.check_loss_isfinite(loss):
+                valid_loss = True
+                self.valid_step += 1
+
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+
+            if valid_loss:
+                with self.no_sync(not should_step):
+                    (loss / self.grad_accumulation_factor).backward()
+                if should_step:
+                    if self.check_loss_isfinite(loss):
+                        if not self.hparams.wav2vec2.freeze:
+                            if self.optimizer_step >= self.hparams.warmup_steps:
+                                self.wav2vec_optimizer.step()
+                        self.model_optimizer.step()
+                    self.zero_grad()
+                    self.optimizer_step += 1
 
         self.on_fit_batch_end(batch, outputs, loss, should_step)
         return loss.detach().cpu()

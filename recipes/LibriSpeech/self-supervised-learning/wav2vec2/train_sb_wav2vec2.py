@@ -137,7 +137,7 @@ class W2V2Brain(sb.core.Brain):
                 objectives["total_loss"] = objectives["backprop_loss"].detach()
                 if should_step:
                     self.scaler.unscale_(self.optimizer)
-                    if self.check_gradients(objectives["backprop_loss"]):
+                    if self.check_loss_isfinite(objectives["backprop_loss"]):
                         self.scaler.step(self.optimizer)
                     self.optimizer.zero_grad()
                     self.optimizer_step += 1
@@ -155,7 +155,7 @@ class W2V2Brain(sb.core.Brain):
                 objectives["total_loss"] = objectives["backprop_loss"].detach()
 
                 if should_step:
-                    if self.check_gradients(objectives["backprop_loss"]):
+                    if self.check_loss_isfinite(objectives["backprop_loss"]):
                         self.optimizer.step()
                     self.optimizer.zero_grad()
                     self.optimizer_step += 1
