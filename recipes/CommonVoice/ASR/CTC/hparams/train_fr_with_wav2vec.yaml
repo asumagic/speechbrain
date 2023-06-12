@@ -7,7 +7,7 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 1234
 __set_seed: !!python/object/apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/wav2vec2_ctc_fr_fp16/<seed>
+output_folder: !ref results/wav2vec2_ctc_fr/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -64,7 +64,7 @@ character_coverage: 1.0
 wav2vec_output_dim: 1024
 dnn_neurons: 1024
 freeze_wav2vec: False
-freeze_feature_extractor: True
+freeze_feature_extractor: False
 dropout: 0.15
 warmup_steps: 500 # The wav2vec 2 model isn't updated for this amount of steps
 
