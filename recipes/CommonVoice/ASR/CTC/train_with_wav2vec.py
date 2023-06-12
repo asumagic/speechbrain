@@ -97,6 +97,7 @@ class ASR(sb.core.Brain):
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
             if self.check_loss_isfinite(loss):
+                self.clip_grad_norm()
                 valid_loss = True
                 self.valid_step += 1
 
@@ -142,6 +143,7 @@ class ASR(sb.core.Brain):
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
             if self.check_loss_isfinite(loss):
+                self.clip_grad_norm()
                 valid_loss = True
                 self.valid_step += 1
 
@@ -152,6 +154,7 @@ class ASR(sb.core.Brain):
                     (loss / self.grad_accumulation_factor).backward()
                 if should_step:
                     if self.check_loss_isfinite(loss):
+                        self.clip_grad_norm()
                         if not self.hparams.wav2vec2.freeze:
                             if self.optimizer_step >= self.hparams.warmup_steps:
                                 self.wav2vec_optimizer.step()
