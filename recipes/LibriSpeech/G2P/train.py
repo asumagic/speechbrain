@@ -393,7 +393,6 @@ class G2PBrain(sb.Brain):
         loss.backward()
 
         if self.check_loss_isfinite(loss):
-
             self.optimizer.step()
         self.optimizer.zero_grad()
 

@@ -191,7 +191,6 @@ class ASR(sb.Brain):
             self.scaler.unscale_(self.adam_optimizer)
 
             if self.check_loss_isfinite(loss):
-
                 self.scaler.step(self.wav2vec_optimizer)
                 self.scaler.step(self.adam_optimizer)
 
@@ -203,7 +202,6 @@ class ASR(sb.Brain):
             loss.backward()
 
             if self.check_loss_isfinite(loss):
-
                 self.wav2vec_optimizer.step()
                 self.adam_optimizer.step()
 

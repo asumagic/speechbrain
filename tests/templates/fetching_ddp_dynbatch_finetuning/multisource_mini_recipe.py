@@ -131,7 +131,6 @@ class SLU(sb.Brain):
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
         loss.backward()
         if self.check_loss_isfinite(loss):
-
             self.optimizer.step()
         self.optimizer.zero_grad()
         self.batch_count += 1

@@ -115,7 +115,6 @@ class SLU(sb.Brain):
 
         loss.backward()
         if self.check_loss_isfinite(loss):
-
             self.wav2vec2_optimizer.step()
             self.optimizer.step()
 

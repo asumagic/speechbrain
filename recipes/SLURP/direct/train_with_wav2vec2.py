@@ -143,7 +143,6 @@ class SLU(sb.Brain):
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
         loss.backward()
         if self.check_loss_isfinite(loss):
-
             self.wav2vec2_optimizer.step()
             self.optimizer.step()
         self.wav2vec2_optimizer.zero_grad()

@@ -940,7 +940,6 @@ class Brain:
             loss = self.compute_objectives(outputs, batch, Stage.TRAIN)
 
             if self.check_loss_isfinite(loss):
-
                 valid_loss = True
                 self.valid_step += 1
 
@@ -970,7 +969,6 @@ class Brain:
                 loss = self.compute_objectives(outputs, batch, Stage.TRAIN)
 
             if self.check_loss_isfinite(loss):
-
                 valid_loss = True
                 self.valid_step += 1
 

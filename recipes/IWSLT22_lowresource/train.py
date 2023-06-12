@@ -109,7 +109,6 @@ class ST(sb.core.Brain):
         loss.backward()
 
         if self.check_loss_isfinite(loss):
-
             if not self.hparams.wav2vec2_frozen:  # if wav2vec2 is not frozen
                 self.wav2vec_optimizer.step()
             self.adam_optimizer.step()

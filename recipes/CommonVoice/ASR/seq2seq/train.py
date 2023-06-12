@@ -124,7 +124,6 @@ class ASR(sb.core.Brain):
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
         loss.backward()
         if self.check_loss_isfinite(loss):
-
             self.optimizer.step()
         self.optimizer.zero_grad()
         return loss.detach()
