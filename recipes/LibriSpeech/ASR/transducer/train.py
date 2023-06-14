@@ -124,6 +124,11 @@ class ASR(sb.Brain):
             training=(stage == sb.Stage.TEST)
         )
         h, _ = self.modules.dec(e_in)
+        h = torch.nn.functional.dropout(
+            h,
+            self.hparams.dec_dropout,
+            training=(stage == sb.Stage.TEST)
+        )
         h = self.modules.proj_dec(h)
 
         # Joint network

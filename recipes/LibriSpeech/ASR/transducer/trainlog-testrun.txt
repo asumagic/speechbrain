@@ -1,0 +1,43 @@
++ hparam_file=hparams/conformer_transducer.yaml
++ srun python3 train.py hparams/conformer_transducer.yaml --data_folder /corpus/LibriSpeech/ --data_folder_rirs /users/sdelangen/coros1/ls_rirs/ --skip_prep True
+/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/nn/modules/rnn.py:71: UserWarning: dropout option adds dropout after all but last recurrent layer, so non-zero dropout expects num_layers greater than 1, but got dropout=0.1 and num_layers=1
+  warnings.warn("dropout option adds dropout after all but last "
+speechbrain.core - Beginning experiment!
+speechbrain.core - Experiment folder: results/conformer_transducer_large/1234
+/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/cuda/__init__.py:107: UserWarning: CUDA initialization: CUDA driver initialization failed, you might not have a CUDA gpu. (Triggered internally at /opt/conda/conda-bld/pytorch_1678402411778/work/c10/cuda/CUDAFunctions.cpp:109.)
+  return torch._C._cuda_getDeviceCount() > 0
+speechbrain.dataio.sampler - Batch quantisation in latent space
+speechbrain.dataio.sampler - DynamicBatchSampler: Generating dynamic batches
+speechbrain.dataio.sampler - Batch quantisation in latent space
+speechbrain.dataio.sampler - DynamicBatchSampler: Generating dynamic batches
+speechbrain.pretrained.fetching - Fetch lm.ckpt: Using existing file/symlink in results/conformer_transducer_large/1234/save/lm.ckpt.
+speechbrain.pretrained.fetching - Fetch tokenizer.ckpt: Using existing file/symlink in results/conformer_transducer_large/1234/save/tokenizer.ckpt.
+speechbrain.utils.parameter_transfer - Loading pretrained files for: lm, tokenizer
+speechbrain.core - Exception:
+Traceback (most recent call last):
+  File "/data/coros1/sdelangen/sbtest/speechbrain/recipes/LibriSpeech/ASR/transducer/train.py", line 476, in <module>
+    hparams["pretrainer"].load_collected(device=run_opts["device"])
+  File "/data/coros1/sdelangen/sbtest/speechbrain/speechbrain/utils/parameter_transfer.py", line 312, in load_collected
+    self._call_load_hooks(paramfiles, device)
+  File "/data/coros1/sdelangen/sbtest/speechbrain/speechbrain/utils/parameter_transfer.py", line 329, in _call_load_hooks
+    default_hook(obj, loadpath, device=device)
+  File "/data/coros1/sdelangen/sbtest/speechbrain/speechbrain/utils/checkpoints.py", line 145, in torch_parameter_transfer
+    torch.load(path, map_location=device), strict=False
+  File "/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/serialization.py", line 809, in load
+    return _load(opened_zipfile, map_location, pickle_module, **pickle_load_args)
+  File "/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/serialization.py", line 1172, in _load
+    result = unpickler.load()
+  File "/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/serialization.py", line 1142, in persistent_load
+    typed_storage = load_tensor(dtype, nbytes, key, _maybe_decode_ascii(location))
+  File "/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/serialization.py", line 1116, in load_tensor
+    wrap_storage=restore_location(storage, location),
+  File "/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/serialization.py", line 1083, in restore_location
+    return default_restore_location(storage, map_location)
+  File "/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/serialization.py", line 217, in default_restore_location
+    result = fn(storage, location)
+  File "/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/serialization.py", line 182, in _cuda_deserialize
+    device = validate_cuda_device(location)
+  File "/users/sdelangen/.conda/envs/pt2/lib/python3.10/site-packages/torch/serialization.py", line 166, in validate_cuda_device
+    raise RuntimeError('Attempting to deserialize object on a CUDA '
+RuntimeError: Attempting to deserialize object on a CUDA device but torch.cuda.is_available() is False. If you are running on a CPU-only machine, please use torch.load with map_location=torch.device('cpu') to map your storages to the CPU.
+srun: error: alpos: task 0: Exited with exit code 1
