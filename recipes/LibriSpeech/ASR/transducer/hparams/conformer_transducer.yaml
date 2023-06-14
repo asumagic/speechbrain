@@ -117,6 +117,7 @@ dynamic_batch_sampler:
 d_model: 512
 joint_dim: 512
 nhead: 4
+conformer_kernel_size: 15
 num_encoder_layers: 12
 num_decoder_layers: 0
 d_ffn: 2048
@@ -192,6 +193,7 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
 
 Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR # yamllint disable-line rule:line-length
    input_size: 1280
+   kernel_size: !ref <conformer_kernel_size>
    tgt_vocab: !ref <output_neurons>
    d_model: !ref <d_model>
    nhead: !ref <nhead>
