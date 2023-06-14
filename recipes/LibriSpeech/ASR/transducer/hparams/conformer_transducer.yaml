@@ -124,6 +124,8 @@ transformer_dropout: 0.3
 activation: !name:torch.nn.GELU
 output_neurons: 1000
 dec_dim: 1024
+dec_emb_dropout: 0.2
+dec_dropout: 0.1
 
 # Decoding parameters
 blank_index: 0
@@ -238,6 +240,7 @@ dec: !new:speechbrain.nnet.RNN.LSTM
    input_shape: [null, null, !ref <output_neurons> - 1]
    hidden_size: !ref <dec_dim>
    num_layers: 1
+   dropout: !ref <dec_dropout>
    re_init: True
 
 # For MTL with LM over the decoder

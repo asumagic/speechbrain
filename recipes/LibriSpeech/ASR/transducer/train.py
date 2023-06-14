@@ -118,6 +118,11 @@ class ASR(sb.Brain):
         x = self.modules.proj_enc(x)
 
         e_in = self.modules.emb(tokens_with_bos)
+        e_in = torch.nn.functional.dropout(
+            e_in,
+            self.hparams.dec_emb_dropout,
+            training=(stage == sb.Stage.TEST)
+        )
         h, _ = self.modules.dec(e_in)
         h = self.modules.proj_dec(h)
 
