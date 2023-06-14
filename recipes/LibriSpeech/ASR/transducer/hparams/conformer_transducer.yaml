@@ -51,7 +51,7 @@ number_of_epochs: 40
 warmup_steps: 25000
 num_workers: 4
 batch_size_valid: 4
-lr: 0.0005
+lr: 1.0
 weight_decay: 0.01
 number_of_ctc_epochs: 40
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
