@@ -124,7 +124,7 @@ d_ffn: 2048
 transformer_dropout: 0.3
 activation: !name:torch.nn.GELU
 output_neurons: 1000
-dec_dim: 1024
+dec_dim: 512
 dec_emb_dropout: 0.2
 dec_dropout: 0.1
 
