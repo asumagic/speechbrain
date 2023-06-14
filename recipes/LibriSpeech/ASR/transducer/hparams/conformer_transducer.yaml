@@ -100,7 +100,7 @@ test_dataloader_opts:
 # This setup works well for V100 32GB GPU, adapts it to your needs.
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 250
+max_batch_len: 512
 max_batch_len_val: 50 # we reduce it as the beam is much wider (VRAM)
 num_bucket: 200
 
