@@ -49,8 +49,12 @@ class ASR(sb.Brain):
         wavs, wav_lens = batch.sig
         tokens_with_bos, token_with_bos_lens = batch.tokens_bos
 
-        # Add env corruption if specified
         if stage == sb.Stage.TRAIN:
+            # Add speed perturb if specified
+            if hasattr(self.modules, "speed_perturb"):
+                wavs = self.modules.speed_perturb(wavs)
+
+            # Add env corruption if specified
             if hasattr(self.modules, "env_corrupt"):
                 wavs_noise = self.modules.env_corrupt(wavs, wav_lens)
                 wavs = torch.cat([wavs, wavs_noise], dim=0)

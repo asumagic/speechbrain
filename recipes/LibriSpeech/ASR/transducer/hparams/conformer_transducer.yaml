@@ -116,8 +116,8 @@ dynamic_batch_sampler:
 # Transformer
 d_model: 512
 joint_dim: 768
-nhead: 8
-num_encoder_layers: 20
+nhead: 4
+num_encoder_layers: 12
 num_decoder_layers: 0
 d_ffn: 2048
 transformer_dropout: 0.1
@@ -161,6 +161,12 @@ augmentation: !new:speechbrain.lobes.augment.SpecAugment
    replace_with_zero: False
    freq_mask_width: 30
    time_mask_width: 40
+
+# We apply speech perturbation slightly differently from ESPnet, as we randomly
+# pick between these discrete values (instead of random between 90% and 110%)
+speed_perturb: !new:speechbrain.processing.speech_augmentation.SpeedPerturb
+   orig_freq: !ref <sample_rate>
+   speeds: (90, 100, 110)
 
 # Uncomment if interested in env corruption
 # env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
@@ -284,6 +290,7 @@ modules:
    transducer_lin: !ref <transducer_lin>
    normalize: !ref <normalize>
    augmentation: !ref <augmentation>
+   speed_perturb: !ref <speed_perturb>
    lm_model: !ref <lm_model>
    proj_ctc: !ref <proj_ctc>
    proj_dec: !ref <proj_dec>
