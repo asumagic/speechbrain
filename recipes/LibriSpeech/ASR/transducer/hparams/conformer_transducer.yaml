@@ -78,7 +78,7 @@ dynamic_left_context_max: 64
 
 # Used if and only if dynamic batching is set to False
 batch_size: 8
-grad_accumulation_factor: 1
+grad_accumulation_factor: 4
 sorting: random
 
 # Feature parameters
