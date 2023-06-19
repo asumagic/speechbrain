@@ -953,7 +953,7 @@ class Brain:
             # Losses are excluded from mixed precision to avoid instabilities
             loss = self.compute_objectives(outputs, batch, Stage.TRAIN)
 
-            if self.check_gradients(loss):
+            if self.check_loss_isfinite(loss):
                 valid_loss = True
                 self.valid_step += 1
 
@@ -981,7 +981,7 @@ class Brain:
                 outputs = self.compute_forward(batch, Stage.TRAIN)
                 loss = self.compute_objectives(outputs, batch, Stage.TRAIN)
 
-            if self.check_gradients(loss):
+            if self.check_loss_isfinite(loss):
                 valid_loss = True
                 self.valid_step += 1
 
@@ -1014,8 +1014,8 @@ class Brain:
         """
         pass
 
-    def check_gradients(self, loss):
-        """Check if gradients are finite and not too large.
+    def check_loss_isfinite(self, loss):
+        """Check if loss is finite and that gradients are not too large.
         Automatically clips large gradients.
 
         Arguments
