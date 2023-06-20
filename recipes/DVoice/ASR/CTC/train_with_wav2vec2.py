@@ -88,31 +88,35 @@ class ASR(sb.core.Brain):
 
     def fit_batch(self, batch):
         """Train the parameters given a single batch in input"""
-        should_step = self.step % self.grad_accumulation_factor == 0
         # Managing automatic mixed precision
-        # TOFIX: CTC fine-tuning currently is unstable
-        # This is certainly due to CTC being done in fp16 instead of fp32
+        valid_loss = False
         if self.auto_mix_prec:
-            with torch.cuda.amp.autocast():
+            with torch.autocast(device_type=torch.device(self.device).type):
                 with self.no_sync():
                     outputs = self.compute_forward(batch, sb.Stage.TRAIN)
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-            with self.no_sync(not should_step):
-                self.scaler.scale(
-                    loss / self.grad_accumulation_factor
-                ).backward()
-            if should_step:
+            if self.check_loss_isfinite(loss):
+                valid_loss = True 
+                self.valid_step += 1
 
-                if not self.hparams.wav2vec2.freeze:
-                    self.scaler.unscale_(self.wav2vec_optimizer)
-                self.scaler.unscale_(self.model_optimizer)
-                if self.check_loss_isfinite(loss):
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+            if valid_loss:
+                with self.no_sync(not should_step):
+                    self.scaler.scale(
+                        loss / self.grad_accumulation_factor
+                    ).backward()
+                if should_step:
                     if not self.hparams.wav2vec2.freeze:
-                        self.scaler.step(self.wav2vec_optimizer)
-                    self.scaler.step(self.model_optimizer)
-                self.scaler.update()
-                self.zero_grad()
-                self.optimizer_step += 1
+                        self.scaler.unscale_(self.wav2vec_optimizer)
+                    self.scaler.unscale_(self.model_optimizer)
+                    # grad clipping / check for inf / nan in grads
+                    if self.check_loss_isfinite(loss):
+                        if not self.hparams.wav2vec2.freeze:
+                            self.scaler.step(self.wav2vec_optimizer)
+                        self.scaler.step(self.model_optimizer)
+                    self.scaler.update()
+                    self.zero_grad()
+                    self.optimizer_step += 1
         else:
             # This is mandatory because HF models have a weird behavior with DDP
             # on the forward pass
@@ -120,17 +124,20 @@ class ASR(sb.core.Brain):
                 outputs = self.compute_forward(batch, sb.Stage.TRAIN)
 
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-
-            with self.no_sync(not should_step):
-                (loss / self.grad_accumulation_factor).backward()
-            if should_step:
-                if self.check_loss_isfinite(loss):
-                    if not self.hparams.wav2vec2.freeze:
-                        self.wav2vec_optimizer.step()
-                    self.model_optimizer.step()
-                self.zero_grad()
-                self.optimizer_step += 1
-
+            if self.check_loss_isfinite(loss):
+                valid_loss = True
+                self.valid_step += 1
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+            if valid_loss:
+                with self.no_sync(not should_step):
+                    (loss / self.grad_accumulation_factor).backward()
+                if should_step:
+                    if self.check_loss_isfinite(loss):
+                        if not self.hparams.wav2vec2.freeze:
+                            self.wav2vec_optimizer.step()
+                        self.model_optimizer.step()
+                    self.zero_grad()
+                    self.optimizer_step += 1
         self.on_fit_batch_end(batch, outputs, loss, should_step)
         return loss.detach().cpu()
 
