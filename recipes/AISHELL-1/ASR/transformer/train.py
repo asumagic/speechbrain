@@ -122,22 +122,27 @@ class ASR(sb.core.Brain):
         # check if we need to switch optimizer
         # if so change the optimizer from Adam to SGD
         self.check_and_reset_optimizer()
+        valid_loss = False
 
         predictions = self.compute_forward(batch, sb.Stage.TRAIN)
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
 
-        # normalize the loss by gradient_accumulation step
-        (loss / self.hparams.gradient_accumulation).backward()
+        if self.check_loss_isfinite(loss):
+            valid_loss = True
+            self.valid_step += 1
 
-        if self.step % self.hparams.gradient_accumulation == 0:
-            # gradient clipping & early stop if loss is not fini
-            self.check_loss_isfinite(loss)
+        should_step = self.valid_step % self.hparams.gradient_accumulation == 0
+        if valid_loss: 
 
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+            # normalize the loss by gradient_accumulation step
+            (loss / self.hparams.gradient_accumulation).backward()
 
-            # anneal lr every update
-            self.hparams.noam_annealing(self.optimizer)
+            if should_step:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+
+                # anneal lr every update
+                self.hparams.noam_annealing(self.optimizer)
 
         return loss.detach()
 
