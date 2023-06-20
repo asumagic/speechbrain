@@ -41,18 +41,22 @@ class EmoIdBrain(sb.Brain):
 
     def fit_batch(self, batch):
         """Trains the parameters given a single batch in input"""
-
+        valid_loss = False
         predictions = self.compute_forward(batch, sb.Stage.TRAIN)
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
+        if self.check_loss_isfinite(loss):
+            valid_loss = True
+            self.valid_step += 1
+        should_step = self.valid_step % self.hparams.gradient_accumulation == 0
+        if valid_loss:
+            # normalize the loss by gradient_accumulation step
+            (loss / self.hparams.gradient_accumulation).backward()
 
-        # normalize the loss by gradient_accumulation step
-        (loss / self.hparams.gradient_accumulation).backward()
-
-        if self.step % self.hparams.gradient_accumulation == 0:
-            # gradient clipping & early stop if loss is not finite
-            self.check_loss_isfinite(loss)
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+            if should_step:
+                # gradient clipping & early stop if loss is not finite
+                self.check_loss_isfinite(loss)
+                self.optimizer.step()
+                self.optimizer.zero_grad()
 
         return loss.detach()
 
