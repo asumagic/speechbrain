@@ -237,8 +237,7 @@ class ASR(sb.core.Brain):
             )
 
     def fit_batch(self, batch):
-
-        should_step = self.step % self.grad_accumulation_factor == 0
+        valid_loss = False
         # Managing automatic mixed precision
         if self.auto_mix_prec:
             with torch.autocast(torch.device(self.device).type):
@@ -246,18 +245,26 @@ class ASR(sb.core.Brain):
 
             # Losses are excluded from mixed precision to avoid instabilities
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-            with self.no_sync(not should_step):
-                self.scaler.scale(
-                    loss / self.grad_accumulation_factor
-                ).backward()
-            if should_step:
-                self.scaler.unscale_(self.optimizer)
-                if self.check_loss_isfinite(loss):
-                    self.scaler.step(self.optimizer)
-                self.scaler.update()
-                self.zero_grad()
-                self.optimizer_step += 1
-                self.hparams.noam_annealing(self.optimizer)
+            if self.check_loss_isfinite(loss):
+                valid_loss = True
+                self.valid_step += 1
+
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+            if valid_loss:
+                with self.no_sync(not should_step):
+                    self.scaler.scale(
+                        loss / self.grad_accumulation_factor
+                    ).backward()
+
+                if should_step:
+                    self.scaler.unscale_(self.optimizer)
+                    # clip grads
+                    if self.check_loss_isfinite(loss):
+                        self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                    self.zero_grad()
+                    self.optimizer_step += 1
+                    self.hparams.noam_annealing(self.optimizer)
         else:
             if self.bfloat16_mix_prec:
                 with torch.autocast(
@@ -271,14 +278,21 @@ class ASR(sb.core.Brain):
             else:
                 outputs = self.compute_forward(batch, sb.Stage.TRAIN)
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-            with self.no_sync(not should_step):
-                (loss / self.grad_accumulation_factor).backward()
-            if should_step:
-                if self.check_loss_isfinite(loss):
-                    self.optimizer.step()
-                self.zero_grad()
-                self.optimizer_step += 1
-                self.hparams.noam_annealing(self.optimizer)
+            
+            if self.check_loss_isfinite(loss):
+                valid_loss = True
+                self.valid_step += 1
+
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+            if valid_loss:
+                with self.no_sync(not should_step):
+                    (loss / self.grad_accumulation_factor).backward()
+                if should_step:
+                    if self.check_loss_isfinite(loss):
+                        self.optimizer.step()
+                    self.zero_grad()
+                    self.optimizer_step += 1
+                    self.hparams.noam_annealing(self.optimizer)
 
         self.on_fit_batch_end(batch, outputs, loss, should_step)
         return loss.detach().cpu()
