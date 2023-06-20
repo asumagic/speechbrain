@@ -102,16 +102,17 @@ class ASR(sb.Brain):
         """Train the parameters given a single batch in input"""
         predictions = self.compute_forward(batch, sb.Stage.TRAIN)
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
-        loss.backward()
 
         if self.check_loss_isfinite(loss):
+            loss.backward()
+            
             if not self.hparams.wav2vec2.freeze:
                 self.wav2vec_optimizer.step()
             self.model_optimizer.step()
 
-        if not self.hparams.wav2vec2.freeze:
-            self.wav2vec_optimizer.zero_grad()
-        self.model_optimizer.zero_grad()
+            if not self.hparams.wav2vec2.freeze:
+                self.wav2vec_optimizer.zero_grad()
+            self.model_optimizer.zero_grad()
 
         return loss.detach()
 
