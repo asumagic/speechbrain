@@ -46,25 +46,32 @@ class LM(sb.core.Brain):
 
     def fit_batch(self, batch):
         """Train the parameters given a single batch in input"""
+        valid_loss = False
         predictions = self.compute_forward(batch, sb.Stage.TRAIN)
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
 
-        (loss / self.hparams.accu_steps).backward()
+        if self.check_loss_isfinite(loss):
+            valid_loss = True 
+            self.valid_step += 1
 
-        if self.step % self.hparams.accu_steps == 0:
-            # gradient clipping & early stop if loss is not fini
-            self.check_loss_isfinite(loss)
+        should_step = self.valid_step % self.hparams.accu_steps == 0
+        if valid_loss:
+            (loss / self.hparams.accu_steps).backward()
 
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+            if should_step:
+                # gradient clipping & early stop if loss is not fini
+                self.check_loss_isfinite(loss)
 
-            if isinstance(
-                self.hparams.lr_annealing, sb.nnet.schedulers.NoamScheduler
-            ) or isinstance(
-                self.hparams.lr_annealing,
-                sb.nnet.schedulers.CyclicCosineScheduler,
-            ):
-                self.hparams.lr_annealing(self.optimizer)
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+
+                if isinstance(
+                    self.hparams.lr_annealing, sb.nnet.schedulers.NoamScheduler
+                ) or isinstance(
+                    self.hparams.lr_annealing,
+                    sb.nnet.schedulers.CyclicCosineScheduler,
+                ):
+                    self.hparams.lr_annealing(self.optimizer)
 
         if isinstance(
             self.hparams.train_logger, sb.utils.train_logger.TensorboardLogger
