@@ -97,9 +97,9 @@ class ASR(sb.core.Brain):
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
             if self.check_loss_isfinite(loss):
                 valid_loss = True
-                self.step += 1
+                self.valid_step += 1
 
-            should_step = self.step % self.grad_accumulation_factor == 0
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
             if valid_loss:
                 with self.no_sync(not should_step):
                     self.scaler.scale(
@@ -138,9 +138,9 @@ class ASR(sb.core.Brain):
 
             if self.check_loss_isfinite(loss):
                 valid_loss = True
-                self.step += 1
+                self.valid_step += 1
 
-            should_step = self.step % self.grad_accumulation_factor == 0
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
             if valid_loss:
                 with self.no_sync(not should_step):
                     (loss / self.grad_accumulation_factor).backward()

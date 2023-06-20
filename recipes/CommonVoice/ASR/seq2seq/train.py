@@ -122,10 +122,10 @@ class ASR(sb.core.Brain):
         """Train the parameters given a single batch in input"""
         predictions = self.compute_forward(batch, sb.Stage.TRAIN)
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
-        loss.backward()
         if self.check_loss_isfinite(loss):
+            loss.backward()
             self.optimizer.step()
-        self.optimizer.zero_grad()
+            self.optimizer.zero_grad()
         return loss.detach()
 
     def evaluate_batch(self, batch, stage):
