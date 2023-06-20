@@ -124,41 +124,53 @@ class ASR(sb.Brain):
         return loss
 
     def fit_batch(self, batch):
-        should_step = self.step % self.grad_accumulation_factor == 0
-
+        valid_loss = False 
         # Managing automatic mixed precision
         if self.auto_mix_prec:
             self.wav2vec_optimizer.zero_grad()
             self.model_optimizer.zero_grad()
-            with torch.cuda.amp.autocast():
+            with torch.autocast(device_type=torch.device(self.device).type):
                 with self.no_sync():
                     outputs = self.compute_forward(batch, sb.Stage.TRAIN)
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-            with self.no_sync(not should_step):
-                self.scaler.scale(
-                    loss / self.grad_accumulation_factor
-                ).backward()
-            if should_step:
-                if not self.hparams.freeze_wav2vec:
-                    self.scaler.unscale_(self.wav2vec_optimizer)
-                self.scaler.unscale_(self.model_optimizer)
-                if self.check_loss_isfinite(loss):
-                    self.scaler.step(self.wav2vec_optimizer)
-                    self.scaler.step(self.model_optimizer)
-                self.scaler.update()
-                self.optimizer_step += 1
+            
+            if self.check_loss_isfinite(loss):
+                valid_loss = True 
+                self.valid_step += 1
+
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+            if valid_loss:
+                with self.no_sync(not should_step):
+                    self.scaler.scale(
+                        loss / self.grad_accumulation_factor
+                    ).backward()
+                if should_step: 
+                    if not self.hparams.freeze_wav2vec:
+                        self.scaler.unscale_(self.wav2vec_optimizer)
+                    self.scaler.unscale_(self.model_optimizer)
+                    if self.check_loss_isfinite(loss):
+                        self.scaler.step(self.wav2vec_optimizer)
+                        self.scaler.step(self.model_optimizer)
+                    self.scaler.update()
+                    self.optimizer_step += 1
         else:
             with self.no_sync():
                 outputs = self.compute_forward(batch, sb.Stage.TRAIN)
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-            (loss / self.grad_accumulation_factor).backward()
-            if should_step:
-                if self.check_loss_isfinite(loss):
-                    self.wav2vec_optimizer.step()
-                    self.model_optimizer.step()
-                self.wav2vec_optimizer.zero_grad()
-                self.model_optimizer.zero_grad()
-                self.optimizer_step += 1
+
+            if self.check_loss_isfinite(loss):
+                valid_loss = True 
+                self.valid_step += 1
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+            if valid_loss:
+                (loss / self.grad_accumulation_factor).backward()
+                if should_step:
+                    if self.check_loss_isfinite(loss):
+                        self.wav2vec_optimizer.step()
+                        self.model_optimizer.step()
+                    self.wav2vec_optimizer.zero_grad()
+                    self.model_optimizer.zero_grad()
+                    self.optimizer_step += 1
 
         return loss.detach().cpu()
 
