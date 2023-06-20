@@ -92,8 +92,7 @@ class ASR(sb.Brain):
         return loss
 
     def fit_batch(self, batch):
-        should_step = self.step % self.grad_accumulation_factor == 0
-
+        valid_loss = False
         # Managing automatic mixed precision
         if self.auto_mix_prec:
             self.whisper_optimizer.zero_grad()
@@ -101,32 +100,45 @@ class ASR(sb.Brain):
             with torch.cuda.amp.autocast():
                 outputs = self.compute_forward(batch, sb.Stage.TRAIN)
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-            self.scaler.scale(loss / self.grad_accumulation_factor).backward()
-            if should_step:
-                self.scaler.unscale_(self.whisper_optimizer)
-                self.scaler.unscale_(self.model_optimizer)
-                if self.check_loss_isfinite(loss):
-                    if self.optimizer_step > self.hparams.warmup_steps:
-                        # Here we added a warmup to the CTC encoder to make sure that
-                        # it does not screw the whisper with too large gradients.
-                        self.scaler.step(self.whisper_optimizer)
-                    self.scaler.step(self.model_optimizer)
-                self.scaler.update()
-                self.optimizer_step += 1
+            if self.check_loss_isfinite(loss):
+                valid_loss = True
+                self.valid_step += 1
+
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+            if valid_loss:
+                self.scaler.scale(loss / self.grad_accumulation_factor).backward()
+                if should_step:
+                    self.scaler.unscale_(self.whisper_optimizer)
+                    self.scaler.unscale_(self.model_optimizer)
+                    if self.check_loss_isfinite(loss):
+                        if self.optimizer_step > self.hparams.warmup_steps:
+                            # Here we added a warmup to the CTC encoder to make sure that
+                            # it does not screw the whisper with too large gradients.
+                            self.scaler.step(self.whisper_optimizer)
+                        self.scaler.step(self.model_optimizer)
+                    self.scaler.update()
+                    self.optimizer_step += 1
         else:
             outputs = self.compute_forward(batch, sb.Stage.TRAIN)
             loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-            (loss / self.grad_accumulation_factor).backward()
-            if should_step:
-                if self.check_loss_isfinite(loss):
-                    # Here we added a warmup to the CTC encoder to make sure that
-                    # it does not screw the whisper with too large gradients.
-                    if self.optimizer_step > self.hparams.warmup_steps:
-                        self.whisper_optimizer.step()
-                    self.model_optimizer.step()
-                self.whisper_optimizer.zero_grad()
-                self.model_optimizer.zero_grad()
-                self.optimizer_step += 1
+            if self.check_loss_isfinite(loss):
+                valid_loss = True
+                self.valid_step += 1
+
+            should_step = self.valid_step % self.grad_accumulation_factor == 0
+            if valid_loss:
+                (loss / self.grad_accumulation_factor).backward()
+                if should_step:
+                    # clip grads
+                    if self.check_loss_isfinite(loss):
+                        # Here we added a warmup to the CTC encoder to make sure that
+                        # it does not screw the whisper with too large gradients.
+                        if self.optimizer_step > self.hparams.warmup_steps:
+                            self.whisper_optimizer.step()
+                        self.model_optimizer.step()
+                    self.whisper_optimizer.zero_grad()
+                    self.model_optimizer.zero_grad()
+                    self.optimizer_step += 1
 
         return loss.detach().cpu()
 
