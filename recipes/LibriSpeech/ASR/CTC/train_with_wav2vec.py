@@ -165,6 +165,7 @@ class ASR(sb.Brain):
             if valid_loss:
                 (loss / self.grad_accumulation_factor).backward()
                 if should_step:
+                    # clip grads
                     if self.check_loss_isfinite(loss):
                         self.wav2vec_optimizer.step()
                         self.model_optimizer.step()
