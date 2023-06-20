@@ -92,8 +92,9 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
 
+        self.batch_norm = nn.BatchNorm1d(input_size)
+
         self.after_conv = nn.Sequential(
-            nn.LayerNorm(input_size),
             activation(),
             # pointwise
             nn.Linear(input_size, input_size, bias=bias),
@@ -127,6 +128,9 @@ class ConvolutionModule(nn.Module):
         if self.causal:
             # chomp
             out = out[..., : -self.padding]
+
+        out = self.batch_norm(out)
+
         out = out.transpose(1, 2)
         out = self.after_conv(out)
         return out

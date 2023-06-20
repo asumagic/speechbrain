@@ -47,7 +47,7 @@ ckpt_interval_minutes: 5 # save checkpoint every N min
 # Empirically, we found that this value should be >= 128.
 # Please, set your parameters accordingly.
 auto_mix_prec: True
-number_of_epochs: 40
+number_of_epochs: 100
 warmup_steps: 25000
 num_workers: 4
 batch_size_valid: 4
@@ -60,7 +60,7 @@ max_grad_norm: 5.0
 loss_reduction: 'batchmean'
 
 # Streaming & dynamic chunk training options
-streaming: False  # disables all DCT & chunk size & left context mechanisms
+streaming: False  # controls all DCT & chunk size & left context mechanisms
 
 test_chunk_size: 8
 test_left_context_size: 64
@@ -100,7 +100,7 @@ test_dataloader_opts:
 # This setup works well for V100 32GB GPU, adapts it to your needs.
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 512
+max_batch_len: 500
 max_batch_len_val: 50 # we reduce it as the beam is much wider (VRAM)
 num_bucket: 200
 
