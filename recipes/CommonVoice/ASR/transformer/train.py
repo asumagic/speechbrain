@@ -135,19 +135,22 @@ class ASR(sb.core.Brain):
 
         predictions = self.compute_forward(batch, sb.Stage.TRAIN)
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
+        if self.check_loss_isfinite(loss):
+            valid_loss = True
+            self.valid_step = True
 
-        # normalize the loss by gradient_accumulation step
-        (loss / self.hparams.gradient_accumulation).backward()
+        should_step = self.valid_step % self.grad_accumulation_factor == 0
+        if valid_loss:
 
-        if self.step % self.hparams.gradient_accumulation == 0:
-            # gradient clipping & early stop if loss is not fini
-            self.check_loss_isfinite(loss)
+            # normalize the loss by gradient_accumulation step
+            (loss / self.hparams.gradient_accumulation).backward()
+            
+            if should_step:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
 
-            self.optimizer.step()
-            self.optimizer.zero_grad()
-
-            # anneal lr every update
-            self.hparams.noam_annealing(self.optimizer)
+                # anneal lr every update
+                self.hparams.noam_annealing(self.optimizer)
 
         return loss.detach()
 
