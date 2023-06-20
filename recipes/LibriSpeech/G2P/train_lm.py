@@ -105,31 +105,38 @@ class LM(sb.core.Brain):
         Loss : torch.Tensor
             A tensor containing the loss (single real number).
         """
+        valid_loss = False 
         predictions = self.compute_forward(batch, sb.Stage.TRAIN)
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
+        
+        if self.check_loss_isfinite(loss):
+            valid_loss = True 
+            self.valid_step += 1
+        
+        should_step = self.valid_step % self.hparams.accu_steps == 0
+        if valid_loss:
+            # Loss backpropagation (gradient computation)
+            (loss / self.hparams.accu_steps).backward()
 
-        # Loss backpropagation (gradient computation)
-        (loss / self.hparams.accu_steps).backward()
+            # Manage gradient accumulation
+            if should_step:
 
-        # Manage gradient accumulation
-        if self.step % self.hparams.accu_steps == 0:
+                # Gradient clipping & early stop if loss is not fini
+                self.check_loss_isfinite(loss)
 
-            # Gradient clipping & early stop if loss is not fini
-            self.check_loss_isfinite(loss)
+                # Update the parameters
+                self.optimizer.step()
 
-            # Update the parameters
-            self.optimizer.step()
+                # Reset the gradient
+                self.optimizer.zero_grad()
 
-            # Reset the gradient
-            self.optimizer.zero_grad()
-
-            if isinstance(
-                self.hparams.lr_annealing, sb.nnet.schedulers.NoamScheduler
-            ) or isinstance(
-                self.hparams.lr_annealing,
-                sb.nnet.schedulers.CyclicCosineScheduler,
-            ):
-                self.hparams.lr_annealing(self.optimizer)
+                if isinstance(
+                    self.hparams.lr_annealing, sb.nnet.schedulers.NoamScheduler
+                ) or isinstance(
+                    self.hparams.lr_annealing,
+                    sb.nnet.schedulers.CyclicCosineScheduler,
+                ):
+                    self.hparams.lr_annealing(self.optimizer)
 
         return loss
 
