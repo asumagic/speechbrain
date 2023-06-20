@@ -105,7 +105,7 @@ class ASR(sb.Brain):
 
         if self.check_loss_isfinite(loss):
             loss.backward()
-            
+
             if not self.hparams.wav2vec2.freeze:
                 self.wav2vec_optimizer.step()
             self.model_optimizer.step()
