@@ -82,47 +82,59 @@ class W2VBrain(sb.core.Brain):
 
     def fit_batch(self, batch):
         """Train the parameters given a single batch in input"""
-
+        valid_loss = False
         # Here we manage mixed precision
         if self.auto_mix_prec:
-            with torch.cuda.amp.autocast():
+            with torch.autocast(device_type=torch.device(self.device).type):
                 predictions = self.compute_forward(batch, sb.Stage.TRAIN)
                 loss = self.compute_objectives(
                     predictions, batch, sb.Stage.TRAIN
                 )
 
-            # normalize the loss by gradient_accumulation step
-            self.scaler.scale(
-                loss / self.hparams.gradient_accumulation
-            ).backward()
+            if self.check_loss_isfinite(loss):
+                valid_loss = True 
+                self.valid_step += 1
 
-            if self.step % self.hparams.gradient_accumulation == 0:
-                # gradient clipping & early stop if loss is not fini
-                self.check_loss_isfinite(loss)
+            should_step = self.valid_step % self.gradient_accumulation == 0
+            if valid_loss:
+                # normalize the loss by gradient_accumulation step
+                self.scaler.scale(
+                    loss / self.hparams.gradient_accumulation
+                ).backward()
 
-                self.scaler.unscale_(self.optimizer)
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                self.optimizer.zero_grad()
+                if should_step:
+                    # gradient clipping & early stop if loss is not finite
+                    self.check_loss_isfinite(loss)
 
-                # anneal lr every update
-                self.hparams.noam_annealing(self.optimizer)
+                    self.scaler.unscale_(self.optimizer)
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                    self.optimizer.zero_grad()
+
+                    # anneal lr every update
+                    self.hparams.noam_annealing(self.optimizer)
         else:
             predictions = self.compute_forward(batch, sb.Stage.TRAIN)
             loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
 
-            # normalize the loss by gradient_accumulation step
-            (loss / self.hparams.gradient_accumulation).backward()
+            if self.check_loss_isfinite(loss):
+                valid_loss = True 
+                self.valid_step += 1
 
-            if self.step % self.hparams.gradient_accumulation == 0:
-                # gradient clipping & early stop if loss is not fini
-                self.check_loss_isfinite(loss)
+            should_step = self.valid_step % self.gradient_accumulation == 0
+            if valid_loss: 
+                # normalize the loss by gradient_accumulation step
+                (loss / self.hparams.gradient_accumulation).backward()
 
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+                if should_step:
+                    # gradient clipping & early stop if loss is not finite
+                    self.check_loss_isfinite(loss)
 
-                # anneal lr every update
-                self.hparams.noam_annealing(self.optimizer)
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+                    # anneal lr every update
+                    self.hparams.noam_annealing(self.optimizer)
 
         return loss.detach()
 
