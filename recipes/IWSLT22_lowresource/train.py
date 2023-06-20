@@ -106,16 +106,18 @@ class ST(sb.core.Brain):
         """Train the parameters given a single batch in input"""
         predictions = self.compute_forward(batch, sb.Stage.TRAIN)
         loss = self.compute_objectives(predictions, batch, sb.Stage.TRAIN)
-        loss.backward()
-
+        
         if self.check_loss_isfinite(loss):
-            if not self.hparams.wav2vec2_frozen:  # if wav2vec2 is not frozen
-                self.wav2vec_optimizer.step()
-            self.adam_optimizer.step()
+            loss.backward()
 
-        if not self.hparams.wav2vec2_frozen:
-            self.wav2vec_optimizer.zero_grad()
-        self.adam_optimizer.zero_grad()
+            if self.check_loss_isfinite(loss):
+                if not self.hparams.wav2vec2_frozen:  # if wav2vec2 is not frozen
+                    self.wav2vec_optimizer.step()
+                self.adam_optimizer.step()
+
+            if not self.hparams.wav2vec2_frozen:
+                self.wav2vec_optimizer.zero_grad()
+            self.adam_optimizer.zero_grad()
 
         return loss.detach().cpu()
 
