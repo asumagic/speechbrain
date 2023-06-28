@@ -144,10 +144,16 @@ class ASR(sb.Brain):
             p_ctc = None
             p_ce = None
 
-            if self.hparams.ctc_weight > 0.0:
+            current_epoch = self.hparams.epoch_counter.current
+
+            if (
+                current_epoch <= self.hparams.number_of_ctc_epochs
+                and self.hparams.ctc_weight > 0.0
+            ):
                 # Output layer for ctc log-probabilities
                 out_ctc = self.modules.proj_ctc(x)
                 p_ctc = self.hparams.log_softmax(out_ctc)
+
             if self.hparams.ce_weight > 0.0:
                 # Output layer for ctc log-probabilities
                 p_ce = self.modules.dec_lin(h)
@@ -228,10 +234,9 @@ class ASR(sb.Brain):
         should_step = self.step % self.grad_accumulation_factor == 0
         # Managing automatic mixed precision
         if self.auto_mix_prec:
-            with torch.cuda.amp.autocast():
+            with self.no_sync(not should_step), torch.cuda.amp.autocast():
                 outputs = self.compute_forward(batch, sb.Stage.TRAIN)
                 loss: torch.Tensor = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
-            with self.no_sync(not should_step):
                 self.scaler.scale(
                     loss / self.grad_accumulation_factor
                 ).backward()

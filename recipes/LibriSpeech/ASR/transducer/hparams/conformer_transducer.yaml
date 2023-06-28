@@ -47,17 +47,18 @@ ckpt_interval_minutes: 5 # save checkpoint every N min
 # Empirically, we found that this value should be >= 128.
 # Please, set your parameters accordingly.
 auto_mix_prec: True
-number_of_epochs: 100
+number_of_epochs: 140
 warmup_steps: 25000
 num_workers: 4
 batch_size_valid: 4
 lr: 1.0
-weight_decay: 0.01
+weight_decay: 0.001
 number_of_ctc_epochs: 40
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
 ce_weight: 0.0 # Multitask with CE for the decoder (0.0 = disabled)
 max_grad_norm: 5.0
 loss_reduction: 'batchmean'
+# env_corrupt_prob: 0.2
 
 # Streaming & dynamic chunk training options
 streaming: False  # controls all DCT & chunk size & left context mechanisms
@@ -72,13 +73,13 @@ dynamic_chunk_thresh: 0.6
 dynamic_chunk_min: 8
 dynamic_chunk_max: 32
 
-dynamic_left_context_thresh: 0.75
+dynamic_left_context_thresh: 0.75 # TODO: rename all to prob, makes more sense
 dynamic_left_context_min: 16
 dynamic_left_context_max: 64
 
 # Used if and only if dynamic batching is set to False
 batch_size: 8
-grad_accumulation_factor: 4
+grad_accumulation_factor: 16
 sorting: random
 
 # Feature parameters
@@ -100,7 +101,7 @@ test_dataloader_opts:
 # This setup works well for V100 32GB GPU, adapts it to your needs.
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 500
+max_batch_len: 125
 max_batch_len_val: 50 # we reduce it as the beam is much wider (VRAM)
 num_bucket: 200
 
@@ -117,8 +118,8 @@ dynamic_batch_sampler:
 d_model: 512
 joint_dim: 512
 nhead: 4
-conformer_kernel_size: 15
-num_encoder_layers: 12
+conformer_kernel_size: 31
+num_encoder_layers: 16
 num_decoder_layers: 0
 d_ffn: 2048
 transformer_dropout: 0.3
@@ -171,14 +172,13 @@ speed_perturb: !new:speechbrain.processing.speech_augmentation.SpeedPerturb
    orig_freq: !ref <sample_rate>
    speeds: (90, 100, 110)
 
-# Uncomment if interested in env corruption
 # env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
-#   openrir_folder: !ref <data_folder_rirs>
-#   babble_prob: 0.0
-#   reverb_prob: 0.0
-#   noise_prob: 1.0
-#   noise_snr_low: 0
-#   noise_snr_high: 15
+#    openrir_folder: !ref <data_folder_rirs>
+#    babble_prob: 0.0
+#    reverb_prob: 0.0
+#    noise_prob: 1.0
+#    noise_snr_low: 0
+#    noise_snr_high: 15
 
 CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    input_shape: (8, 10, 80)
@@ -295,6 +295,7 @@ modules:
    normalize: !ref <normalize>
    augmentation: !ref <augmentation>
    speed_perturb: !ref <speed_perturb>
+   # env_corrupt: !ref <env_corrupt>
    lm_model: !ref <lm_model>
    proj_ctc: !ref <proj_ctc>
    proj_dec: !ref <proj_dec>
