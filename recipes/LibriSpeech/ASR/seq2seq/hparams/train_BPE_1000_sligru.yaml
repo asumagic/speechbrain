@@ -1,17 +1,18 @@
 # ############################################################################
 # Model: E2E ASR with attention-based ASR
 # Encoder: CRDNN model
-# Decoder: GRU + beamsearch + RNNLM
+# Decoder: SLi-GRU + beamsearch + RNNLM
 # Tokens: BPE with unigram
-# losses: Transducer
-# Training: Librispeech 100h
-# Authors:  Abdel HEBA, Mirco Ravanelli, Sung-Lin Yeh 2020
+# losses: CTC + NLL
+# Training: LibriSpeech 960h
+# Authors:  Ju-Chieh Chou, Mirco Ravanelli, Abdel Heba, Peter Plantinga,
+# Samuele Cornell 2020, Adel Moumen 2023
 # ############################################################################
 
-# Seed needs to be set at top of yaml, before objects with parameters are made
-seed: 1234
-__set_seed: !!python/object/apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/CRDNN_BPE_RNNT_LM_100H/<seed>
+# Seed needs to be set at top of yaml, before objects with parameters
+seed: 2602
+__set_seed: !apply:torch.manual_seed [!ref <seed>]
+output_folder: !ref results/CRDNN_BPE_960h_LM_SLiGRU/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -25,35 +26,37 @@ train_log: !ref <output_folder>/train_log.txt
 pretrained_lm_tokenizer_path: speechbrain/asr-crdnn-rnnlm-librispeech
 
 # Data files
-data_folder: !PLACEHOLDER # e.g, /localscratch/LibriSpeech
-# If RIRS_NOISES dir exists in /localscratch/xxx_corpus/RIRS_NOISES
-# then data_folder_rirs should be /localscratch/xxx_corpus
-# otherwise the dataset will automatically be downloaded
-data_folder_rirs: !ref <data_folder>
-#train_splits: ["train-clean-100", "train-clean-360", "train-other-500"]
-train_splits: ["train-clean-100"]
+data_folder: !PLACEHOLDER # e,g./path/to/LibriSpeech
+# noise/ris dataset will automatically be downloaded
+data_folder_rirs: !ref <data_folder> # where to store noisy data for augment (change it if needed)
+
+train_splits: ["train-clean-100", "train-clean-360", "train-other-500"]
 dev_splits: ["dev-clean"]
 test_splits: ["test-clean", "test-other"]
+skip_prep: False
+ckpt_interval_minutes: 15 # save checkpoint every N min
 train_csv: !ref <output_folder>/train.csv
 valid_csv: !ref <output_folder>/dev-clean.csv
 test_csv:
    - !ref <output_folder>/test-clean.csv
    - !ref <output_folder>/test-other.csv
-skip_prep: False
-ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 30
-batch_size: 8
-batch_size_valid: 4
+number_of_epochs: 15
+number_of_ctc_epochs: 15
+batch_size: 24
 lr: 1.0
+ctc_weight: 0.5
 sorting: ascending
-# MTL for encoder with CTC (uncomment enc_lin layer)
-#number_of_ctc_epochs: 2
-#ctc_weight: 0.33
-# MTL for decoder with CE (uncomment dec_lin layer)
-#number_of_ce_epochs: 2
-#ce_weight: 0.33
+dynamic_batching: False
+
+# dynamic batching parameters, if used
+dynamic_batch_sampler:
+   feats_hop_size: 0.01
+   max_batch_len: 20000 # in terms of frames
+   shuffle_ex: True
+   batch_ordering: random
+   num_buckets: 20
 
 # Feature parameters
 sample_rate: 16000
@@ -70,10 +73,10 @@ train_dataloader_opts:
    batch_size: !ref <batch_size>
 
 valid_dataloader_opts:
-   batch_size: !ref <batch_size_valid>
+   batch_size: !ref <batch_size>
 
 test_dataloader_opts:
-   batch_size: !ref <batch_size_valid>
+   batch_size: !ref <batch_size>
 
 # Model parameters
 activation: !name:torch.nn.LeakyReLU
@@ -83,26 +86,32 @@ cnn_channels: (128, 256)
 inter_layer_pooling_size: (2, 2)
 cnn_kernelsize: (3, 3)
 time_pooling_size: 4
-rnn_class: !name:speechbrain.nnet.RNN.LSTM
+rnn_class: !name:speechbrain.nnet.RNN.SLiGRU
 rnn_layers: 4
 rnn_neurons: 1024
 rnn_bidirectional: True
 dnn_blocks: 2
-dnn_neurons: 1024
+dnn_neurons: 512
+emb_size: 128
 dec_neurons: 1024
-output_neurons: 1000  # index(blank/eos/bos) = 0
-joint_dim: 1024
+output_neurons: 1000  # Number of tokens (same as LM)
 blank_index: 0
+bos_index: 0
+eos_index: 0
 
 # Decoding parameters
-beam_size: 4
-nbest: 1
-# by default {state,expand}_beam = 2.3 as mention in paper
-# https://arxiv.org/abs/1904.02619
-state_beam: 2.3
-expand_beam: 2.3
+min_decode_ratio: 0.0
+max_decode_ratio: 1.0
+valid_beam_size: 80
+test_beam_size: 80
+eos_threshold: 1.5
+using_max_attn_shift: True
+max_attn_shift: 240
 lm_weight: 0.50
-
+ctc_weight_decode: 0.0
+coverage_penalty: 1.5
+temperature: 1.25
+temperature_lm: 1.25
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
    limit: !ref <number_of_epochs>
@@ -145,58 +154,48 @@ enc: !new:speechbrain.lobes.models.CRDNN.CRDNN
    rnn_re_init: True
    dnn_blocks: !ref <dnn_blocks>
    dnn_neurons: !ref <dnn_neurons>
-
-# For MTL CTC over the encoder
-enc_lin: !new:speechbrain.nnet.linear.Linear
-   input_size: !ref <dnn_neurons>
-   n_neurons: !ref <joint_dim>
-
-# Uncomment for MTL with CTC
-#ctc_cost: !name:speechbrain.nnet.losses.ctc_loss
-#    blank_index: !ref <blank_index>
+   use_rnnp: False
 
 emb: !new:speechbrain.nnet.embedding.Embedding
    num_embeddings: !ref <output_neurons>
-   consider_as_one_hot: True
-   blank_id: !ref <blank_index>
+   embedding_dim: !ref <emb_size>
 
-dec: !new:speechbrain.nnet.RNN.GRU
-   input_shape: [null, null, !ref <output_neurons> - 1]
+dec: !new:speechbrain.nnet.RNN.AttentionalRNNDecoder
+   enc_dim: !ref <dnn_neurons>
+   input_size: !ref <emb_size>
+   rnn_type: gru
+   attn_type: location
    hidden_size: !ref <dec_neurons>
+   attn_dim: 1024
    num_layers: 1
+   scaling: 1.0
+   channels: 10
+   kernel_size: 100
    re_init: True
+   dropout: !ref <dropout>
 
-# For MTL with LM over the decoder
-dec_lin: !new:speechbrain.nnet.linear.Linear
-   input_size: !ref <dec_neurons>
-   n_neurons: !ref <joint_dim>
-   bias: False
-
-# For MTL
-#ce_cost: !name:speechbrain.nnet.losses.nll_loss
-#   label_smoothing: 0.1
-
-Tjoint: !new:speechbrain.nnet.transducer.transducer_joint.Transducer_joint
-   joint: sum # joint [sum | concat]
-   nonlinearity: !ref <activation>
-
-transducer_lin: !new:speechbrain.nnet.linear.Linear
-   input_size: !ref <joint_dim>
+ctc_lin: !new:speechbrain.nnet.linear.Linear
+   input_size: !ref <dnn_neurons>
    n_neurons: !ref <output_neurons>
-   bias: False
+
+seq_lin: !new:speechbrain.nnet.linear.Linear
+   input_size: !ref <dec_neurons>
+   n_neurons: !ref <output_neurons>
 
 log_softmax: !new:speechbrain.nnet.activations.Softmax
    apply_log: True
 
-transducer_cost: !name:speechbrain.nnet.losses.transducer_loss
+ctc_cost: !name:speechbrain.nnet.losses.ctc_loss
    blank_index: !ref <blank_index>
-   use_torchaudio: True
+
+seq_cost: !name:speechbrain.nnet.losses.nll_loss
+   label_smoothing: 0.1
 
 # This is the RNNLM that is used according to the Huggingface repository
 # NB: It has to match the pre-trained RNNLM!!
 lm_model: !new:speechbrain.lobes.models.RNNLM.RNNLM
    output_neurons: !ref <output_neurons>
-   embedding_dim: 128
+   embedding_dim: !ref <emb_size>
    activation: !name:torch.nn.LeakyReLU
    dropout: 0.0
    rnn_layers: 2
@@ -205,48 +204,59 @@ lm_model: !new:speechbrain.lobes.models.RNNLM.RNNLM
    dnn_neurons: 512
    return_hidden: True  # For inference
 
-# for MTL
-# update model if any HEAD module is added
+tokenizer: !new:sentencepiece.SentencePieceProcessor
+
+# Models
 modules:
    enc: !ref <enc>
    emb: !ref <emb>
    dec: !ref <dec>
-   Tjoint: !ref <Tjoint>
-   transducer_lin: !ref <transducer_lin>
+   ctc_lin: !ref <ctc_lin>
+   seq_lin: !ref <seq_lin>
    normalize: !ref <normalize>
    env_corrupt: !ref <env_corrupt>
-   augmentation: !ref <augmentation>
    lm_model: !ref <lm_model>
-   enc_lin: !ref <enc_lin>
-   dec_lin: !ref <dec_lin>
 
-# for MTL
-# update model if any HEAD module is added
 model: !new:torch.nn.ModuleList
-   - [!ref <enc>, !ref <emb>, !ref <dec>, !ref <transducer_lin>]
+   - [!ref <enc>, !ref <emb>, !ref <dec>, !ref <ctc_lin>, !ref <seq_lin>]
 
-# Tokenizer initialization
-tokenizer: !new:sentencepiece.SentencePieceProcessor
+valid_search: !new:speechbrain.decoders.S2SRNNBeamSearcher
+   embedding: !ref <emb>
+   decoder: !ref <dec>
+   linear: !ref <seq_lin>
+   ctc_linear: !ref <ctc_lin>
+   bos_index: !ref <bos_index>
+   eos_index: !ref <eos_index>
+   blank_index: !ref <blank_index>
+   min_decode_ratio: !ref <min_decode_ratio>
+   max_decode_ratio: !ref <max_decode_ratio>
+   beam_size: !ref <valid_beam_size>
+   eos_threshold: !ref <eos_threshold>
+   using_max_attn_shift: !ref <using_max_attn_shift>
+   max_attn_shift: !ref <max_attn_shift>
+   coverage_penalty: !ref <coverage_penalty>
+   temperature: !ref <temperature>
 
-Greedysearcher: !new:speechbrain.decoders.transducer.TransducerBeamSearcher
-   decode_network_lst: [!ref <emb>, !ref <dec>]
-   tjoint: !ref <Tjoint>
-   classifier_network: [!ref <transducer_lin>]
-   blank_id: !ref <blank_index>
-   beam_size: 1
-   nbest: 1
-
-Beamsearcher: !new:speechbrain.decoders.transducer.TransducerBeamSearcher
-   decode_network_lst: [!ref <emb>, !ref <dec>]
-   tjoint: !ref <Tjoint>
-   classifier_network: [!ref <transducer_lin>]
-   blank_id: !ref <blank_index>
-   beam_size: !ref <beam_size>
-   nbest: !ref <nbest>
-   lm_module: !ref <lm_model>
+test_search: !new:speechbrain.decoders.S2SRNNBeamSearchLM
+   embedding: !ref <emb>
+   decoder: !ref <dec>
+   linear: !ref <seq_lin>
+   ctc_linear: !ref <ctc_lin>
+   language_model: !ref <lm_model>
+   bos_index: !ref <bos_index>
+   eos_index: !ref <eos_index>
+   blank_index: !ref <blank_index>
+   min_decode_ratio: !ref <min_decode_ratio>
+   max_decode_ratio: !ref <max_decode_ratio>
+   beam_size: !ref <test_beam_size>
+   eos_threshold: !ref <eos_threshold>
+   using_max_attn_shift: !ref <using_max_attn_shift>
+   max_attn_shift: !ref <max_attn_shift>
+   coverage_penalty: !ref <coverage_penalty>
    lm_weight: !ref <lm_weight>
-   state_beam: !ref <state_beam>
-   expand_beam: !ref <expand_beam>
+   ctc_weight: !ref <ctc_weight_decode>
+   temperature: !ref <temperature>
+   temperature_lm: !ref <temperature_lm>
 
 lr_annealing: !new:speechbrain.nnet.schedulers.NewBobScheduler
    initial_value: !ref <lr>
@@ -262,6 +272,18 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
       normalizer: !ref <normalize>
       counter: !ref <epoch_counter>
 
+train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
+   save_file: !ref <train_log>
+
+error_rate_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
+
+cer_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
+   split_tokens: True
+
+# The pretrainer allows a mapping between pretrained files and instances that
+# are declared in the yaml. E.g here, we will download the file lm.ckpt
+# and it will be loaded into "lm" which is pointing to the <lm_model> defined
+# before.
 pretrainer: !new:speechbrain.utils.parameter_transfer.Pretrainer
    collect_in: !ref <save_folder>
    loadables:
@@ -270,12 +292,3 @@ pretrainer: !new:speechbrain.utils.parameter_transfer.Pretrainer
    paths:
       lm: !ref <pretrained_lm_tokenizer_path>/lm.ckpt
       tokenizer: !ref <pretrained_lm_tokenizer_path>/tokenizer.ckpt
-
-
-train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
-   save_file: !ref <train_log>
-
-error_rate_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
-
-cer_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
-   split_tokens: True
