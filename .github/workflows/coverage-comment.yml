@@ -16,7 +16,7 @@ on: # yamllint disable-line rule:truthy
             - completed
 
 jobs:
-    upload:
+    covcomment:
         runs-on: ubuntu-latest
         if: >
             github.event.workflow_run.event == 'pull_request' &&
@@ -47,11 +47,11 @@ jobs:
               id: pr_id_reader
               uses: juliangruber/read-file-action@v1.1.6
               with:
-                  path: ./testresults/issue_id.txt
+                  path: ./issue_id.txt
             - name: Pytest coverage comment
               uses: MishaKav/pytest-coverage-comment@main
               with:
-                  pytest-coverage-path: ./testresults/pytest-coverage.txt
-                  junitxml-path: ./testresults/pytest.xml
+                  pytest-coverage-path: ./pytest-coverage.txt
+                  junitxml-path: ./pytest.xml
                   report-only-changed-files: True
                   issue-number: ${{ steps.pr_id_reader.outputs.content }}
