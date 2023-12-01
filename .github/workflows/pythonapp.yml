@@ -1,5 +1,6 @@
 # SpeechBrain  unit tests to ease continuous integration
 # NOTE: Caching these offers no speedup
+# NOTE: Name might be referenced elsewhere!
 name: SpeechBrain toolkit CI
 
 # Runs on pushes to master and all pull requests
