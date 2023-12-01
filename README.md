@@ -5,7 +5,7 @@
 [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/SpeechBrain1/)
 [![Discord](https://dcbadge.vercel.app/api/server/3wYvAaz3Ck?style=flat)](https://discord.gg/3wYvAaz3Ck)
 
-foobar
+foobarfoo
 
 SpeechBrain is an **open-source** and **all-in-one** conversational AI toolkit based on PyTorch.
 
