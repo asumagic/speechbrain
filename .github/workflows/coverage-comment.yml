@@ -50,7 +50,7 @@ jobs:
             - name: Pytest coverage comment
               uses: MishaKav/pytest-coverage-comment@main
               with:
-                  pytest-coverage-path: ./testresults/pytest-coverage.txt
-                  junitxml-path: ./testresults/pytest.xml
+                  pytest-coverage-path: ./pytest-coverage.txt
+                  junitxml-path: ./pytest.xml
                   hide-report: True
                   issue-number: ${{ steps.pr_id_reader.outputs.content }}
