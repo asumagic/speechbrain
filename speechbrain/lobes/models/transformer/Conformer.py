@@ -401,7 +401,7 @@ class ConformerEncoderLayer(nn.Module):
         src_mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: torch.Tensor = None,
-        chunk_size: int = -1,
+        dct_config: Optional[DCTConfig] = None,
     ):
         """
         Arguments
@@ -414,9 +414,9 @@ class ConformerEncoderLayer(nn.Module):
             The mask for the src keys per batch.
         pos_embs: torch.Tensor, torch.nn.Module, optional
             Module or tensor containing the input sequence positional embeddings
-        chunk_size: int
-            Whether to preform convolution chunking to hide future context,
-            useful for chunked conformers in a dynamic chunk training setting
+        dct_config: Optional[DCTConfig]
+            DCT configuration object for streaming, specifically involved here
+            to apply Dynamic Chunk Convolution to the convolution module.
         """
         conv_mask: Optional[torch.Tensor] = None
         if src_key_padding_mask is not None:
@@ -437,7 +437,7 @@ class ConformerEncoderLayer(nn.Module):
         )
         x = x + skip
         # convolution module
-        x = x + self.convolution_module(x, conv_mask, chunk_size=chunk_size)
+        x = x + self.convolution_module(x, conv_mask, dct_config=dct_config)
         # ffn module
         x = self.norm2(x + 0.5 * self.ffn_module2(x))
         return x, self_attn
@@ -605,7 +605,7 @@ class ConformerEncoder(nn.Module):
         src_mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: Optional[torch.Tensor] = None,
-        chunk_size: int = -1,
+        dct_config: Optional[DCTConfig] = None,
     ):
         """
         Arguments
@@ -620,10 +620,9 @@ class ConformerEncoder(nn.Module):
             Module or tensor containing the input sequence positional embeddings
             If custom pos_embs are given it needs to have the shape (1, 2*S-1, E)
             where S is the sequence length, and E is the embedding dimension.
-        chunk_size: int
-            Whether to preform convolution chunking to hide future context,
-            useful for chunked conformers in a dynamic chunk training setting
-            `-1` ignores chunking
+        dct_config: Optional[DCTConfig]
+            DCT configuration object for streaming, specifically involved here
+            to apply Dynamic Chunk Convolution to the convolution module.
         """
         if self.attention_type == "RelPosMHAXL":
             if pos_embs is None:

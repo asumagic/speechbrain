@@ -18,6 +18,34 @@ from speechbrain.nnet.attention import RelPosEncXL
 from speechbrain.nnet.CNN import Conv1d
 
 
+# NOTE: this configuration object is intended to be relatively specific to DCT;
+# if you want to implement a different similar type of chunking different from
+# DCT you should consider using a different object.
+@dataclass
+class DCTConfig:
+    """Dynamic Chunk Training configuration object for use with transformers,
+    often in ASR for streaming.
+
+    This object may be used both to configure masking at training time and for
+    run-time configuration of DCT-ready models."""
+
+    chunk_size: int
+    """Size in frames of a single chunk, always `>0`.
+    If chunkwise streaming should be disabled at some point, pass an optional
+    streaming config parameter."""
+
+    left_context_size: Optional[int]
+    """Number of *chunks* (not frames) visible to the left, always `>=0`.
+    If zero, then chunks can never attend to any past chunk.
+    If `None`, the left context is infinite (but use
+    `.is_fininite_left_context` for such a check)."""
+
+    def is_infinite_left_context(self) -> bool:
+        """Returns true if the left context is infinite (i.e. any chunk can
+        attend to any past frame)."""
+        return left_context_size is not None
+
+
 class TransformerInterface(nn.Module):
     """This is an interface for transformer model.
     Users can modify the attributes and define the forward function as
@@ -197,6 +225,9 @@ class TransformerInterface(nn.Module):
                     gate_activation=gate_activation,
                     use_linear_after_conv=use_linear_after_conv,
                 )
+
+        self.encoder.d_model = d_model
+        self.encoder.attention_type = attention_type
 
         # initialize the decoder
         if num_decoder_layers > 0:
@@ -526,7 +557,6 @@ class TransformerEncoder(nn.Module):
         src_mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: Optional[torch.Tensor] = None,
-        chunk_size: int = -1,
     ):
         """
         Arguments
@@ -538,7 +568,6 @@ class TransformerEncoder(nn.Module):
         src_key_padding_mask : tensor
             The mask for the src keys per batch (optional).
         """
-        assert chunk_size == -1, "Encoder does not support streaming"
         output = src
         if self.layerdrop_prob > 0.0:
             keep_probs = self.rng.random(len(self.layers))

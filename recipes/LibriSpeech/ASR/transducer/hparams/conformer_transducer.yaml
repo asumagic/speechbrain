@@ -125,7 +125,6 @@ d_model: 512
 joint_dim: 640
 nhead: 8
 num_encoder_layers: 12
-num_decoder_layers: 0
 d_ffn: 2048
 transformer_dropout: 0.1
 activation: !name:torch.nn.GELU
@@ -148,7 +147,7 @@ expand_beam: 2.3
 lm_weight: 0.50
 
 # If True uses torchaudio loss. Otherwise, the numba one
-use_torchaudio: False
+use_torchaudio: True
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
    limit: !ref <number_of_epochs>
@@ -242,13 +241,11 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    strides: (2, 2)
    residuals: (False, False)
 
-Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR # yamllint disable-line rule:line-length
-   input_size: 640
-   tgt_vocab: !ref <output_neurons>
+transformer_encoder: !new:speechbrain.lobes.models.transformer.Transformer.TransformerEncoder # yamllint disable-line rule:line-length
+   input_size: 512
    d_model: !ref <d_model>
    nhead: !ref <nhead>
-   num_encoder_layers: !ref <num_encoder_layers>
-   num_decoder_layers: !ref <num_decoder_layers>
+   num_layers: !ref <num_encoder_layers>
    d_ffn: !ref <d_ffn>
    dropout: !ref <transformer_dropout>
    activation: !ref <activation>
@@ -257,9 +254,9 @@ Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.Transforme
    normalize_before: True
    causal: False
 
-# We must call an encoder wrapper so the decoder isn't run (we don't have any)
-enc: !new:speechbrain.lobes.models.transformer.TransformerASR.EncoderWrapper
-   transformer: !ref <Transformer>
+enc: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerEncoderASR # yamllint disable-line rule:line-length
+   encoder: !ref <transformer_encoder>
+   input_size: 640
 
 # For MTL CTC over the encoder
 proj_ctc: !new:speechbrain.nnet.linear.Linear
