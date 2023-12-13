@@ -45,6 +45,22 @@ class DCTConfig:
         attend to any past frame)."""
         return left_context_size is not None
 
+# TODO
+@dataclass
+class DCTConfigRandomSampler:
+    dct_prob: float
+
+    chunk_size_min: int
+    chunk_size_max: int
+
+    left_context_prob: float
+    left_context_min: int
+    left_context_max: int
+
+    def sample_one() -> DCTConfig:
+        pass
+
+
 
 class TransformerInterface(nn.Module):
     """This is an interface for transformer model.
