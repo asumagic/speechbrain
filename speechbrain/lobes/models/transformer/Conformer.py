@@ -164,7 +164,7 @@ class ConvolutionModule(nn.Module):
 
         return out
 
-    def forward(self, x, mask=None, chunk_size=-1):
+    def forward(self, x, mask=None, dct_config: Optional[DCTConfig] = None):
         """ Processes the input tensor x and returns the output an output tensor"""
 
         # ref: Dynamic chunk convolution for unified streaming and non-streaming
@@ -173,7 +173,7 @@ class ConvolutionModule(nn.Module):
         # split the input into chunks of size `chunk_size`, but for each chunk
         # provide a left context for left chunk dependencies to be possible.
 
-        if chunk_size >= 1:
+        if dct_config is not None:
             # chances are chunking+causal is unintended; i don't know where it
             # may make sense, but if it does to you, feel free to implement it.
             assert (
@@ -183,17 +183,17 @@ class ConvolutionModule(nn.Module):
             batch_size = x.shape[0]
             chunk_left_context = self.padding
 
-            chunk_count = int(math.ceil(x.shape[1] / chunk_size))
+            chunk_count = int(math.ceil(x.shape[1] / dct_config.chunk_size))
 
-            if x.shape[1] % chunk_size != 0:
-                final_right_padding = chunk_size - (x.shape[1] % chunk_size)
+            if x.shape[1] % dct_config.chunk_size != 0:
+                final_right_padding = dct_config.chunk_size - (x.shape[1] % dct_config.chunk_size)
             else:
                 final_right_padding = 0
 
             # compute the left context that can and should be added, for each
             # chunk. for the first few chunks, we will need to add extra padding
             applied_left_context = [
-                min(chunk_left_context, i * chunk_size,)
+                min(chunk_left_context, i * dct_config.chunk_size,)
                 for i in range(chunk_count)
             ]
 
@@ -203,8 +203,8 @@ class ConvolutionModule(nn.Module):
             out = [
                 x[
                     :,
-                    i * chunk_size
-                    - applied_left_context[i] : (i + 1) * chunk_size,
+                    i * dct_config.chunk_size
+                    - applied_left_context[i] : (i + 1) * dct_config.chunk_size,
                     ...,
                 ]
                 for i in range(chunk_count)

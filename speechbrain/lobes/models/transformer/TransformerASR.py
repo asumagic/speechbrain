@@ -414,6 +414,7 @@ class TransformerEncoderASR(torch.nn.Module):
         encoder: TransformerEncoder,
         input_size: int,
         input_dropout: float = 0.0,
+        positional_encoding: Optional[torch.nn.Module] = None
     ):
         super().__init__()
 
@@ -429,6 +430,8 @@ class TransformerEncoderASR(torch.nn.Module):
             ),
             torch.nn.Dropout(input_dropout),
         )
+
+        self.positional_encoding = positional_encoding
 
     def merge_src_channels(self, src: torch.Tensor):
         """When `src` is 4D, flatten it from [batch, time, ch1, ch2] to
@@ -447,12 +450,10 @@ class TransformerEncoderASR(torch.nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         src = self.custom_src_module(src)
 
-        if self.encoder.attention_type == "hypermixing":
-            pos_embs_source = None
-        elif self.encoder.attention_type == "RelPosMHAXL":
+        if self.positional_encoding is not None:
+            # todo: fixed_abs_sine fix
             pos_embs_source = self.positional_encoding(src)
-        elif self.encoder.positional_encoding_type == "fixed_abs_sine":
-            src = src + self.positional_encoding(src)
+        else:
             pos_embs_source = None
 
         # TODO: this avoids erroring out, but it's pretty ugly and chances are
@@ -484,7 +485,7 @@ class TransformerEncoderASR(torch.nn.Module):
             src, wav_len=wav_len, pad_idx=pad_idx, dct_config=dct_config
         )
 
-        encoder_out, _pos_embs_source = self.forward_with_masks(
+        encoder_out = self.forward_with_masks(
             src=src,
             src_key_padding_mask=src_key_padding_mask,
             src_mask=src_mask,
@@ -519,6 +520,7 @@ class TransformerEncoderASR(torch.nn.Module):
         """
 
         src = self.merge_src_channels(src)
+        src = self.custom_src_module(src)
 
         # HACK: our problem here is that the positional_encoding is computed
         # against the size of our source tensor, but we only know how many left
@@ -544,15 +546,11 @@ class TransformerEncoderASR(torch.nn.Module):
             target_shape[-2] += known_left_context.shape[-2]
             pos_encoding_dummy = torch.empty(size=target_shape).to(src)
 
-        src = self.custom_src_module(src)
-
-        if self.attention_type == "RelPosMHAXL":
+        if self.positional_encoder_embedding is not None:
+            # todo: fixed_abs_sine fix
             pos_embs_source = self.positional_encoding(pos_encoding_dummy)
         else:
-            raise AttributeError(
-                f"forward_streaming does not support {self.attention_type} "
-                "attention"
-            )
+            pos_embs_source = None
 
         encoder_out, _ = self.encoder.forward_streaming(
             src=src, pos_embs=pos_embs_source, context=context.encoder_context

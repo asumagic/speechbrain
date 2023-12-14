@@ -106,7 +106,6 @@ class DCTConfigRandomSampler:
             # `dynamic_chunk_prob` probability of sampling a chunk size
             # between `dynamic_chunk_min` and `_max`, otherwise output
             # frames can see anywhere in the future.
-            # NOTE: We use torch random to be bound to the experiment seed.
             if self._sample_bool(self.dct_prob):
                 chunk_size = torch.randint(
                     self.chunk_size_min, self.chunk_size_max + 1, (1,),
