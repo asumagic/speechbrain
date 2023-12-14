@@ -41,6 +41,9 @@ class DCTConfig:
 
 @dataclass
 class DCTConfigRandomSampler:
+    """Helper class to generate a DCTConfig at runtime depending on the current
+    stage."""
+
     dct_prob: float
     """When sampling (during `Stage.TRAIN`), the probability that a finite chunk
     size will be used.
@@ -50,7 +53,7 @@ class DCTConfigRandomSampler:
     chunk_size_min: int
     """When sampling a random chunk size, the minimum chunk size that can be
     picked."""
-    
+
     chunk_size_max: int
     """When sampling a random chunk size, the maximum chunk size that can be
     picked."""
@@ -71,7 +74,7 @@ class DCTConfigRandomSampler:
     test_config: Optional[DCTConfig] = None
     """The configuration that should be used for `Stage.TEST`.
     When `None`, evaluation is done with full context (i.e. non-streaming)."""
-    
+
     valid_config: Optional[DCTConfig] = None
     """The configuration that should be used for `Stage.VALID`.
     When `None`, evaluation is done with full context (i.e. non-streaming)."""
