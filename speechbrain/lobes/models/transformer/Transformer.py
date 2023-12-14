@@ -3,7 +3,6 @@ Authors
 * Jianyuan Zhong 2020
 * Samuele Cornell 2021
 """
-from dataclasses import dataclass
 import math
 import torch
 import torch.nn as nn

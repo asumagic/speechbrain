@@ -640,7 +640,7 @@ class ConformerEncoder(nn.Module):
                 src_mask=src_mask,
                 src_key_padding_mask=src_key_padding_mask,
                 pos_embs=pos_embs,
-                chunk_size=chunk_size,
+                dct_config=dct_config,
             )
             attention_lst.append(attention)
         output = self.norm(output)

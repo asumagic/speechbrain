@@ -93,8 +93,8 @@ dct_config_sampler: !new:speechbrain.utils.DCT.DCTConfigRandomSampler # yamllint
    left_context_chunks_min: 2
    left_context_chunks_max: 2
 
-   # valid_config 
-   # test_config 
+   # valid_config
+   # test_config
 
 # Dataloader options
 train_dataloader_opts:
@@ -259,6 +259,8 @@ enc: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerEncoder
    encoder: !ref <transformer_encoder>
    input_size: 640
    input_dropout: !ref <transformer_dropout>
+   positional_encoding: !new:speechbrain.nnet.attention.RelPosEncXL
+      d_model: !ref <d_model>
 
 # For MTL CTC over the encoder
 proj_ctc: !new:speechbrain.nnet.linear.Linear

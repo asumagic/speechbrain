@@ -35,7 +35,6 @@ import torch
 import logging
 import speechbrain as sb
 from speechbrain.utils.distributed import run_on_main, if_main_process
-from speechbrain.utils.DCT import DCTConfig
 from hyperpyyaml import load_hyperpyyaml
 from pathlib import Path
 
@@ -80,10 +79,7 @@ class ASR(sb.Brain):
 
         src = self.modules.CNN(feats)
         x = self.modules.enc(
-            src,
-            wav_lens,
-            pad_idx=self.hparams.pad_index,
-            dct_config=dct_config
+            src, wav_lens, pad_idx=self.hparams.pad_index, dct_config=dct_config
         )
         x = self.modules.proj_enc(x)
 

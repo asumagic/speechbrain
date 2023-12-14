@@ -51,9 +51,7 @@ def make_asr_src_mask(
         # init a mask that masks nothing by default
         # 0 == no mask, 1 == mask
         src_mask = torch.zeros(
-            (src.shape[1], src.shape[1]),
-            device=src.device,
-            dtype=torch.bool,
+            (src.shape[1], src.shape[1]), device=src.device, dtype=torch.bool,
         )
 
         # The following is not really the sole source used to implement this,
@@ -78,7 +76,7 @@ def make_asr_src_mask(
         # only relevant if using left context
         if not dct_config.is_infinite_left_context():
             for t in range(timesteps):
-                chunk_index = (t // dct_config.chunk_size)
+                chunk_index = t // dct_config.chunk_size
                 chunk_first_t = chunk_index * dct_config.chunk_size
                 frame_remaining_context = max(
                     0, chunk_first_t - dct_config.left_context_chunks
@@ -87,7 +85,7 @@ def make_asr_src_mask(
                 # end range is exclusive, so there is no off-by-one here
                 src_mask[t, :frame_remaining_context] = True
 
-        return src_mask 
+        return src_mask
 
     return None
 
@@ -121,7 +119,7 @@ def make_asr_masks(
         abs_len = torch.round(wav_len * src.shape[1])
         src_key_padding_mask = ~length_to_mask(abs_len).bool()
 
-    # mask out the source 
+    # mask out the source
     src_mask = make_asr_src_mask(src, causal=causal, dct_config=dct_config)
 
     # If no decoder in the transformer...
@@ -260,8 +258,7 @@ class TransformerASR(TransformerInterface):
         )
 
         self.asr_encoder = TransformerEncoderASR(
-            self.encoder,
-            input_size=input_size,
+            self.encoder, input_size=input_size,
         )
 
         self.custom_tgt_module = ModuleList(
@@ -295,8 +292,7 @@ class TransformerASR(TransformerInterface):
         ) = make_asr_masks(src, tgt, wav_len, pad_idx=pad_idx)
 
         encoder_out, _ = self.asr_encoder.forward_with_masks(
-            src_key_padding_mask=src_key_padding_mask,
-            src_mask=src_mask,
+            src_key_padding_mask=src_key_padding_mask, src_mask=src_mask,
         )
 
         tgt = self.custom_tgt_module(tgt)
@@ -385,10 +381,7 @@ class TransformerASR(TransformerInterface):
             Torch Tensor of shape (batch, ) containing the relative length to padded length for each example.
         """
         return self.asr_encoder(
-            src=src,
-            wav_len=wav_len,
-            pad_idx=pad_idx,
-            dct_config=dct_config,
+            src=src, wav_len=wav_len, pad_idx=pad_idx, dct_config=dct_config,
         )
 
     # TODO: move this function to a generic xavier init thing
@@ -420,7 +413,7 @@ class TransformerEncoderASR(torch.nn.Module):
         self,
         encoder: TransformerEncoder,
         input_size: int,
-        input_dropout: float = 0.0
+        input_dropout: float = 0.0,
     ):
         super().__init__()
 
@@ -473,7 +466,7 @@ class TransformerEncoderASR(torch.nn.Module):
             src_mask=src_mask,
             src_key_padding_mask=src_key_padding_mask,
             pos_embs=pos_embs_source,
-            **extra_encoder_kwargs
+            **extra_encoder_kwargs,
         )
 
         return encoder_out
@@ -482,16 +475,13 @@ class TransformerEncoderASR(torch.nn.Module):
         self,
         src: torch.Tensor,
         wav_len: Optional[torch.Tensor] = None,
-        pad_idx = 0,
+        pad_idx=0,
         dct_config: Optional[DCTConfig] = None,
     ) -> torch.Tensor:
         src = self.merge_src_channels(src)
 
         (src_key_padding_mask, _, src_mask, _,) = make_asr_masks(
-            src,
-            wav_len=wav_len,
-            pad_idx=pad_idx,
-            dct_config=dct_config
+            src, wav_len=wav_len, pad_idx=pad_idx, dct_config=dct_config
         )
 
         encoder_out, _pos_embs_source = self.forward_with_masks(
@@ -504,9 +494,7 @@ class TransformerEncoderASR(torch.nn.Module):
         return encoder_out
 
     def forward_streaming(
-        self,
-        src: torch.Tensor,
-        context: TransformerEncoderASRStreamingContext
+        self, src: torch.Tensor, context: TransformerEncoderASRStreamingContext
     ):
         """
         Streaming encoder forward pass. To be used for inference, not masked
@@ -529,7 +517,7 @@ class TransformerEncoderASR(torch.nn.Module):
         -------
         Encoder output for this chunk.
         """
-        
+
         src = self.merge_src_channels(src)
 
         # HACK: our problem here is that the positional_encoding is computed
