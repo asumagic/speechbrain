@@ -20,6 +20,7 @@ from speechbrain.nnet.attention import (
     MultiheadAttention,
     PositionalwiseFeedForward,
 )
+from speechbrain.utils.DCT import DCTConfig
 from speechbrain.lobes.models.transformer.hypermixing import HyperMixing
 from speechbrain.nnet.normalization import LayerNorm
 from speechbrain.nnet.activations import Swish
@@ -596,6 +597,7 @@ class ConformerEncoder(nn.Module):
                 for i in range(num_layers)
             ]
         )
+        self.d_model = d_model
         self.norm = LayerNorm(d_model, eps=1e-6)
         self.attention_type = attention_type
 

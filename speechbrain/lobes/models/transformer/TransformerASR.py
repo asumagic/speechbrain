@@ -11,7 +11,6 @@ from typing import Any, Optional, Tuple
 from speechbrain.nnet.linear import Linear
 from speechbrain.nnet.containers import ModuleList
 from speechbrain.lobes.models.transformer.Transformer import (
-    DCTConfig,
     TransformerInterface,
     TransformerEncoder,
     get_lookahead_mask,
@@ -20,6 +19,7 @@ from speechbrain.lobes.models.transformer.Transformer import (
 )
 from speechbrain.nnet.activations import Swish
 from speechbrain.dataio.dataio import length_to_mask
+from speechbrain.utils.DCT import DCTConfig
 
 
 @dataclass
@@ -44,7 +44,7 @@ def make_asr_src_mask(
     """Prepare the source mask of shape (TODO)"""
 
     if causal:
-        assert chunkwise_streaming_config is None
+        assert dct_config is None
         return get_lookahead_mask(src)
 
     if dct_config is not None:
@@ -93,7 +93,6 @@ def make_asr_src_mask(
 
 
 def make_asr_masks(
-    self,
     src,
     tgt=None,
     wav_len=None,
@@ -400,7 +399,7 @@ class TransformerASR(TransformerInterface):
                 torch.nn.init.xavier_normal_(p)
 
 
-class TransformerEncoderASR:
+class TransformerEncoderASR(torch.nn.Module):
     """Wrapper to TransformerEncoder with some helpers for a typical ASR use,
     simplifies mask calculation and positional encoding usage.
 
@@ -421,7 +420,10 @@ class TransformerEncoderASR:
         self,
         encoder: TransformerEncoder,
         input_size: int,
+        input_dropout: float = 0.0
     ):
+        super().__init__()
+
         self.encoder = encoder
         self.input_size = input_size
 
@@ -432,10 +434,10 @@ class TransformerEncoderASR:
                 bias=True,
                 combine_dims=False,
             ),
-            torch.nn.Dropout(dropout),
+            torch.nn.Dropout(input_dropout),
         )
 
-    def merge_src_channels(src: torch.Tensor):
+    def merge_src_channels(self, src: torch.Tensor):
         """When `src` is 4D, flatten it from [batch, time, ch1, ch2] to
         [batch, time, feats]."""
         if src.ndim == 4:
@@ -444,6 +446,7 @@ class TransformerEncoderASR:
         return src
 
     def forward_with_masks(
+        self,
         src: torch.Tensor,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         src_mask: Optional[torch.Tensor] = None,
@@ -476,17 +479,17 @@ class TransformerEncoderASR:
         return encoder_out
 
     def forward(
+        self,
         src: torch.Tensor,
         wav_len: Optional[torch.Tensor] = None,
         pad_idx = 0,
         dct_config: Optional[DCTConfig] = None,
     ) -> torch.Tensor:
-        src = merge_src_channels(src)
+        src = self.merge_src_channels(src)
 
         (src_key_padding_mask, _, src_mask, _,) = make_asr_masks(
             src,
-            None,
-            wav_len,
+            wav_len=wav_len,
             pad_idx=pad_idx,
             dct_config=dct_config
         )
@@ -501,6 +504,7 @@ class TransformerEncoderASR:
         return encoder_out
 
     def forward_streaming(
+        self,
         src: torch.Tensor,
         context: TransformerEncoderASRStreamingContext
     ):
@@ -573,8 +577,8 @@ class TransformerEncoderASR:
 
         Arguments
         ---------
-        chunk_size : int
-            How many frames comprise a chunk.
+        dct_config : DCTConfig
+            DCT runtime configuration.
 
         encoder_kwargs : dict
             Parameters to be forward to the encoder's `make_streaming_context`.

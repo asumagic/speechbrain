@@ -83,7 +83,7 @@ test_left_context_size: 64
 valid_chunk_size: -1
 valid_left_context_size: -1
 
-dct_sampler: !new:speechbrain.lobes.models.transformer.Transformer.DCTConfigRandomSampler # yamllint disable-line rule:line-length
+dct_config_sampler: !new:speechbrain.utils.DCT.DCTConfigRandomSampler # yamllint disable-line rule:line-length
    dct_prob: 0.6
 
    chunk_size_min: 8
@@ -92,6 +92,9 @@ dct_sampler: !new:speechbrain.lobes.models.transformer.Transformer.DCTConfigRand
    limited_left_context_prob: 0.75
    left_context_chunks_min: 2
    left_context_chunks_max: 2
+
+   # valid_config 
+   # test_config 
 
 # Dataloader options
 train_dataloader_opts:
@@ -242,22 +245,20 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    strides: (2, 2)
    residuals: (False, False)
 
-transformer_encoder: !new:speechbrain.lobes.models.transformer.Transformer.TransformerEncoder # yamllint disable-line rule:line-length
-   input_size: 512
+transformer_encoder: !new:speechbrain.lobes.models.transformer.Conformer.ConformerEncoder # yamllint disable-line rule:line-length
    d_model: !ref <d_model>
    nhead: !ref <nhead>
    num_layers: !ref <num_encoder_layers>
    d_ffn: !ref <d_ffn>
    dropout: !ref <transformer_dropout>
    activation: !ref <activation>
-   encoder_module: conformer
    attention_type: RelPosMHAXL
-   normalize_before: True
    causal: False
 
 enc: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerEncoderASR # yamllint disable-line rule:line-length
    encoder: !ref <transformer_encoder>
    input_size: 640
+   input_dropout: !ref <transformer_dropout>
 
 # For MTL CTC over the encoder
 proj_ctc: !new:speechbrain.nnet.linear.Linear

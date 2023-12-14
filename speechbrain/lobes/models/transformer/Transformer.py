@@ -3,6 +3,7 @@ Authors
 * Jianyuan Zhong 2020
 * Samuele Cornell 2021
 """
+from dataclasses import dataclass
 import math
 import torch
 import torch.nn as nn
@@ -16,50 +17,6 @@ from .Branchformer import BranchformerEncoder
 from speechbrain.nnet.activations import Swish
 from speechbrain.nnet.attention import RelPosEncXL
 from speechbrain.nnet.CNN import Conv1d
-
-
-# NOTE: this configuration object is intended to be relatively specific to DCT;
-# if you want to implement a different similar type of chunking different from
-# DCT you should consider using a different object.
-@dataclass
-class DCTConfig:
-    """Dynamic Chunk Training configuration object for use with transformers,
-    often in ASR for streaming.
-
-    This object may be used both to configure masking at training time and for
-    run-time configuration of DCT-ready models."""
-
-    chunk_size: int
-    """Size in frames of a single chunk, always `>0`.
-    If chunkwise streaming should be disabled at some point, pass an optional
-    streaming config parameter."""
-
-    left_context_size: Optional[int]
-    """Number of *chunks* (not frames) visible to the left, always `>=0`.
-    If zero, then chunks can never attend to any past chunk.
-    If `None`, the left context is infinite (but use
-    `.is_fininite_left_context` for such a check)."""
-
-    def is_infinite_left_context(self) -> bool:
-        """Returns true if the left context is infinite (i.e. any chunk can
-        attend to any past frame)."""
-        return left_context_size is not None
-
-# TODO
-@dataclass
-class DCTConfigRandomSampler:
-    dct_prob: float
-
-    chunk_size_min: int
-    chunk_size_max: int
-
-    left_context_prob: float
-    left_context_min: int
-    left_context_max: int
-
-    def sample_one() -> DCTConfig:
-        pass
-
 
 
 class TransformerInterface(nn.Module):
@@ -241,9 +198,6 @@ class TransformerInterface(nn.Module):
                     gate_activation=gate_activation,
                     use_linear_after_conv=use_linear_after_conv,
                 )
-
-        self.encoder.d_model = d_model
-        self.encoder.attention_type = attention_type
 
         # initialize the decoder
         if num_decoder_layers > 0:
