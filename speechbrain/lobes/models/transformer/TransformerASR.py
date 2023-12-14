@@ -414,7 +414,7 @@ class TransformerEncoderASR(torch.nn.Module):
         encoder: TransformerEncoder,
         input_size: int,
         input_dropout: float = 0.0,
-        positional_encoding: Optional[torch.nn.Module] = None
+        positional_encoding: Optional[torch.nn.Module] = None,
     ):
         super().__init__()
 
@@ -450,8 +450,8 @@ class TransformerEncoderASR(torch.nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         src = self.custom_src_module(src)
 
+        # TODO: support more than just this here 
         if self.positional_encoding is not None:
-            # todo: fixed_abs_sine fix
             pos_embs_source = self.positional_encoding(src)
         else:
             pos_embs_source = None

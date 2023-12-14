@@ -186,7 +186,9 @@ class ConvolutionModule(nn.Module):
             chunk_count = int(math.ceil(x.shape[1] / dct_config.chunk_size))
 
             if x.shape[1] % dct_config.chunk_size != 0:
-                final_right_padding = dct_config.chunk_size - (x.shape[1] % dct_config.chunk_size)
+                final_right_padding = dct_config.chunk_size - (
+                    x.shape[1] % dct_config.chunk_size
+                )
             else:
                 final_right_padding = 0
 
