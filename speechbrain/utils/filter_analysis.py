@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Iterable
 
 @dataclass
 class FilterProperties:
@@ -84,20 +85,33 @@ class FilterProperties:
             self.dilation > 0
         ), "Dilation must be >0. NOTE: a dilation of 1 means no dilation."
 
+    @staticmethod
+    def pointwise_filter() -> "FilterProperties":
+        """Returns filter properties for a trivial filter whose output frames
+        only ever depend on their respective input frame."""
+
+        return FilterProperties(window_size=1, stride=1)
+
     def has_overlap(self):
         """Whether two output frames may ever depend on the same input frame."""
         ...
 
     def get_effective_size(self):
-        """The number of input frames that span the window, including those ignored by dilation."""
+        """The number of input frames that span the window, including those
+        ignored by dilation."""
         return 1 + ((self.window_size - 1) * self.dilation)
 
     def get_convolution_padding(self):
-        """The number of frames that need to be inserted on each end for a typical convolution."""
-        # TODO: bad naming? how to give the docstring?
-        # TODO: check kernel size
-        # NOTE: remember to handle causality
-        ...
+        """The number of frames that need to be inserted on each end for a
+        typical convolution."""
+
+        if self.window_size % 2 == 0:
+            raise ValueError("Cannot determine padding with even window size")
+
+        if self.causal:
+            return self.get_effective_size() - 1
+
+        return (self.get_effective_size() - 1) // 2
 
     def get_noncausal_equivalent(self):
         """From a causal filter definition, gets a compatible non-causal filter
@@ -129,6 +143,8 @@ class FilterProperties:
             "pessimistic" and express false dependencies instead of erroring
             out when exact properties cannot be determined.
             This might be the case when stacking non-causal and causal filters.
+            Depending on the usecase, this might be fine, but functions like
+            `has_overlap` may erroneously start returning `True`.
         """
 
         self_size = self.window_size
@@ -162,3 +178,30 @@ class FilterProperties:
         causal = self.causal
 
         return FilterProperties(out_size, stride, dilation, causal)
+
+def stack_filter_properties(filters: Iterable[FilterProperties], allow_approximate: bool = True) -> FilterProperties:
+    """Returns the filter properties of a sequence of stacked filters.
+    If the sequence is empty, then a no-op filter is returned (with a size and
+    stride of 1).
+    
+    Arguments
+    ---------
+    filters: FilterProperties
+        The filters to combine, e.g. `[a, b, c]` modelling `c(b(a(x)))`.
+
+    allow_approximate: bool, optional
+        See `FilterProperties.with_on_top`."""
+
+    ret = None
+
+    for prop in filters:
+        if ret is None:
+            ret = prop
+            continue
+
+        ret = ret.with_on_top(prop, allow_approximate)
+
+    if ret is None:
+        return FilterProperties.pointwise_filter()
+
+    return ret
