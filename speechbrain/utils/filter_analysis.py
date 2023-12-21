@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Any, Iterable
 
 @dataclass
 class FilterProperties:
@@ -179,29 +179,27 @@ class FilterProperties:
 
         return FilterProperties(out_size, stride, dilation, causal)
 
-def stack_filter_properties(filters: Iterable[FilterProperties], allow_approximate: bool = True) -> FilterProperties:
+def stack_filter_properties(filters: Iterable[FilterProperties | Any], allow_approximate: bool = True) -> FilterProperties:
     """Returns the filter properties of a sequence of stacked filters.
     If the sequence is empty, then a no-op filter is returned (with a size and
     stride of 1).
     
     Arguments
     ---------
-    filters: FilterProperties
+    filters: FilterProperties | any
         The filters to combine, e.g. `[a, b, c]` modelling `c(b(a(x)))`.
+        If an item is not an instance of :class:`FilterProperties`, then this
+        attempts to call `.get_filter_properties()` over it.
 
     allow_approximate: bool, optional
         See `FilterProperties.with_on_top`."""
 
-    ret = None
+    ret = FilterProperties.pointwise_filter()
 
     for prop in filters:
-        if ret is None:
-            ret = prop
-            continue
+        if not isinstance(prop, FilterProperties):
+            prop = prop.get_filter_properties()
 
         ret = ret.with_on_top(prop, allow_approximate)
-
-    if ret is None:
-        return FilterProperties.pointwise_filter()
 
     return ret

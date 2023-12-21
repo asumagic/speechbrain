@@ -15,6 +15,7 @@ from speechbrain.processing.features import (
     ContextWindow,
 )
 from speechbrain.utils.autocast import fwd_default_precision
+from speechbrain.utils.filter_analysis import FilterProperties
 from speechbrain.nnet.CNN import GaborConv1d
 from speechbrain.nnet.normalization import PCEN
 from speechbrain.nnet.pooling import GaussianLowpassPooling
@@ -147,6 +148,10 @@ class Fbank(torch.nn.Module):
         if self.context:
             fbanks = self.context_window(fbanks)
         return fbanks
+
+    def get_filter_properties(self) -> FilterProperties:
+        # only the STFT affects the FilterProperties of the Fbank
+        return self.compute_STFT.get_filter_properties()
 
 
 class MFCC(torch.nn.Module):
