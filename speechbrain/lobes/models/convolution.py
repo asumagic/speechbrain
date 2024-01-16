@@ -282,3 +282,27 @@ class ConvBlock(torch.nn.Module):
 
     def get_filter_properties(self) -> FilterProperties:
         return stack_filter_properties(self.filter_properties)
+
+
+class ConformerFeatureExtractorWrapper(torch.nn.Module):
+    """Simple wrapper to call the conformer feature extractor in one go."""
+    
+    def __init__(self, fea_extractor, fea_normalizer, conv_frontend):
+        super().__init__()
+        
+        self.fea_extractor = fea_extractor
+        self.fea_normalizer = fea_normalizer
+        self.conv_frontend = conv_frontend
+
+    def forward(self, x, lens=None, epoch=None):
+        # TODO: docstring
+
+        x = self.fea_extractor(x)
+
+        if lens is None:
+            lens = torch.ones((x.size(0),), device=x.device)
+
+        x = self.fea_normalizer(x, lens, epoch=epoch)
+        x = self.conv_frontend(x)
+
+        return x

@@ -243,13 +243,6 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    strides: (2, 2)
    residuals: (False, False)
 
-fea_pipeline: !new:torch.nn.ModuleList
-   - [!ref <compute_features>, !ref <normalize>, !ref <CNN>]
-
-# don't consider normalization as part of the input filter chain
-fea_filter_properties: !!python/object/apply:speechbrain.utils.filter_analysis.stack_filter_properties
-   - [!ref <compute_features>, !ref <CNN>]
-
 Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR # yamllint disable-line rule:line-length
    input_size: 640
    tgt_vocab: !ref <output_neurons>
@@ -420,3 +413,14 @@ error_rate_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
 
 cer_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
    split_tokens: True
+
+# inference stuff
+
+fea_streaming_wrapper: !new:speechbrain.lobes.features.StreamingFeatureWrapper
+   module: !new:speechbrain.lobes.models.convolution.ConformerFeatureExtractorWrapper
+      - !ref <compute_features>
+      - !ref <normalize>
+      - !ref <CNN>
+   # don't consider normalization as part of the input filter chain
+   properties: !!python/object/apply:speechbrain.utils.filter_analysis.stack_filter_properties
+      - [!ref <compute_features>, !ref <CNN>]

@@ -1096,7 +1096,7 @@ class InputNormalization(torch.nn.Module):
                         self.glob_mean = current_mean
                         self.glob_std = current_std
 
-                    elif epoch < self.update_until_epoch:
+                    elif epoch is None or epoch < self.update_until_epoch:
                         if self.avg_factor is None:
                             self.weight = 1 / (self.count + 1)
                         else:
