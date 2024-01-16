@@ -179,7 +179,7 @@ class FilterProperties:
 
         return FilterProperties(out_size, stride, dilation, causal)
 
-def stack_filter_properties(filters: Iterable[FilterProperties | Any], allow_approximate: bool = True) -> FilterProperties:
+def stack_filter_properties(filters: Iterable[Any], allow_approximate: bool = True) -> FilterProperties:
     """Returns the filter properties of a sequence of stacked filters.
     If the sequence is empty, then a no-op filter is returned (with a size and
     stride of 1).
