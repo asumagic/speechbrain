@@ -13,10 +13,13 @@ Authors:
  * Adel Moumen 2023
  * Pradnya Kandarkar 2023
 """
+from dataclasses import dataclass
+from typing import Any, Optional
 import torch
 import sentencepiece
 import speechbrain
 from speechbrain.inference.interfaces import Pretrained
+from speechbrain.utils.dynamic_chunk_training import DynChunkTrainConfig
 
 
 class EncoderDecoderASR(Pretrained):
@@ -402,3 +405,86 @@ class WhisperASR(Pretrained):
     def forward(self, wavs, wav_lens):
         """Runs full transcription - note: no gradients through decoding"""
         return self.transcribe_batch(wavs, wav_lens)
+
+
+@dataclass
+class ConformerTransducerASRStreamerContext:
+    fea_extractor_context: Any
+    encoder_context: Any
+    decoder_hidden: Optional[torch.Tensor]
+
+class ConformerTransducerASRStreamer:
+    def __init__(self, model, dynchunktrain_config: DynChunkTrainConfig):
+        self.model = model
+        self.config = dynchunktrain_config
+
+        self.fea_extractor = self.model.hparams.fea_streaming_extractor
+        self.filter_props = self.feature_wrapper.properties
+
+        self.context = ConformerTransducerASRStreamerContext(
+            fea_extractor_context=self.fea_extractor.make_streaming_context(),
+            encoder_context=model.hparams.enc.make_streaming_context(
+                dynchunktrain_config=dynchunktrain_config,
+                encoder_kwargs={
+                    "mha_left_context_size": self.config.left_context_size * self.config.chunk_size
+                }
+            ),
+            decoder_hidden=None,
+        )
+
+    def get_chunk_size_frames(self) -> int:
+        """Chunk size in actual audio samples that the user should forward to
+        `consume_chunk`."""
+        return (
+            (self.filter_props.stride - 1) * self.config.chunk_size
+        )
+
+    def decode_preserve_leading_space(self, hyps):
+        """Assuming the tokenizer is sentencepiece, decodes the input hypothesis
+        but preserves initial spaces as we likely want to keep them in a
+        streaming setting."""
+
+        protos = self.model.tokenizer.decode(hyps, out_type="immutable_proto")
+        texts = [proto.text for proto in protos]
+
+        for i, batch in enumerate(protos):
+            if len(batch.pieces) >= 1:
+                if batch.pieces[0].piece[0] == "\u2581":
+                    texts[i] = " " + texts[i]
+
+        return texts
+
+    @torch.no_grad
+    def consume_chunk(self, chunk: torch.Tensor, lens: Optional[torch.Tensor] = None):
+        x = self.feature_wrapper(chunk, context=self.context.fea_extractor_context, lens=lens)
+        x = self.model.hparams.Transformer.encode_streaming(x, self.context.encoder_context)
+        x = self.model.modules.proj_enc(x)
+        best_hyps, _scores, _, _, h = self.model.hparams.Greedysearcher.transducer_greedy_decode(x, self.context.greedy_search_hidden_state, return_hidden=True)
+        self.context.greedy_search_hidden_state = h
+
+        decoded = self.decode_preserve_leading_space(best_hyps)
+
+        return x, decoded
+
+
+class StreamingConformerASR(Pretrained):
+    """A ready-to-use, streaming-capable Conformer model.
+
+    Example
+    -------
+    >>> todo
+    """
+
+    HPARAMS_NEEDED = []
+    MODULES_NEEDED = ["streamer"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def encode_batch(self, wavs, wav_lens, dynchunktrain_config: Optional[DynChunkTrainConfig]):
+        """Non-streaming (offline) encoding of a batch of audio into a sequence
+        of hidden states."""
+
+    def transcribe_batch(self, wavs, wav_lens, dynchunktrain_config: Optional[DynChunkTrainConfig]):
+        """Non-streaming (offline) transcription of a batch of audio into
+        tokens and transcribed tokens (returned separately)."""
