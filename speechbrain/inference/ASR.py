@@ -414,17 +414,19 @@ class ConformerTransducerASRStreamerContext:
     decoder_hidden: Optional[torch.Tensor]
 
 class ConformerTransducerASRStreamer:
-    def __init__(self, model, dynchunktrain_config: DynChunkTrainConfig):
-        self.model = model
+    def __init__(self, modules, hparams, dynchunktrain_config: DynChunkTrainConfig):
+        self.modules = modules
+        self.hparams = hparams
         self.config = dynchunktrain_config
 
-        self.fea_extractor = self.model.hparams.fea_streaming_extractor
-        self.filter_props = self.feature_wrapper.properties
+        self.fea_extractor = hparams["fea_streaming_extractor"]
+        self.filter_props = self.fea_extractor.properties
 
-        self.context = ConformerTransducerASRStreamerContext(
-            fea_extractor_context=self.fea_extractor.make_streaming_context(),
-            encoder_context=model.hparams.enc.make_streaming_context(
-                dynchunktrain_config=dynchunktrain_config,
+    def make_streaming_context(self):
+        return ConformerTransducerASRStreamerContext(
+            fea_extractor_context=self.hparams["fea_streaming_extractor"].make_streaming_context(),
+            encoder_context=self.hparams["enc"].make_streaming_context(
+                dynchunktrain_config=self.config,
                 encoder_kwargs={
                     "mha_left_context_size": self.config.left_context_size * self.config.chunk_size
                 }
@@ -444,7 +446,7 @@ class ConformerTransducerASRStreamer:
         but preserves initial spaces as we likely want to keep them in a
         streaming setting."""
 
-        protos = self.model.tokenizer.decode(hyps, out_type="immutable_proto")
+        protos = self.hparams["tokenizer"].decode(hyps, out_type="immutable_proto")
         texts = [proto.text for proto in protos]
 
         for i, batch in enumerate(protos):
@@ -455,12 +457,12 @@ class ConformerTransducerASRStreamer:
         return texts
 
     @torch.no_grad
-    def consume_chunk(self, chunk: torch.Tensor, lens: Optional[torch.Tensor] = None):
-        x = self.feature_wrapper(chunk, context=self.context.fea_extractor_context, lens=lens)
-        x = self.model.hparams.Transformer.encode_streaming(x, self.context.encoder_context)
-        x = self.model.modules.proj_enc(x)
-        best_hyps, _scores, _, _, h = self.model.hparams.Greedysearcher.transducer_greedy_decode(x, self.context.greedy_search_hidden_state, return_hidden=True)
-        self.context.greedy_search_hidden_state = h
+    def consume_chunk(self, context: ConformerTransducerASRStreamerContext, chunk: torch.Tensor, lens: Optional[torch.Tensor] = None):
+        x = self.fea_extractor(chunk, context=context.fea_extractor_context, lens=lens)
+        x = self.hparams["Transformer"].encode_streaming(x, context.encoder_context)
+        x = self.modules["proj_enc"](x)
+        best_hyps, _scores, _, _, h = self.hparams["Greedysearcher"].transducer_greedy_decode(x, context.decoder_hidden, return_hidden=True)
+        context.greedy_search_hidden_state = h
 
         decoded = self.decode_preserve_leading_space(best_hyps)
 
