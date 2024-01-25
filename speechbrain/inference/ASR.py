@@ -462,7 +462,7 @@ class ConformerTransducerASRStreamer:
         x = self.hparams["Transformer"].encode_streaming(x, context.encoder_context)
         x = self.modules["proj_enc"](x)
         best_hyps, _scores, _, _, h = self.hparams["Greedysearcher"].transducer_greedy_decode(x, context.decoder_hidden, return_hidden=True)
-        context.greedy_search_hidden_state = h
+        context.decoder_hidden = h
 
         decoded = self.decode_preserve_leading_space(best_hyps)
 
