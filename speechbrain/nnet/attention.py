@@ -543,9 +543,10 @@ class RelPosMHAXL(nn.Module):
 
         if self._qkv_same_embed_dim:
             # self-attention
-            if (query is key or torch.equal(query, key)) and (
-                key is value or torch.equal(key, value)
-            ):
+            # if (query is key or torch.equal(query, key)) and (
+            #     key is value or torch.equal(key, value)
+            # ):
+            if True:
                 query, key, value = (
                     nn.functional.linear(query, self.in_proj_weight)
                     .view(bsz, -1, self.num_heads, self.head_dim * 3)

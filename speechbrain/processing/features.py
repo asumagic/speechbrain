@@ -1024,11 +1024,11 @@ class InputNormalization(torch.nn.Module):
 
         for snt_id in range(N_batches):
             # Avoiding padded time steps
-            actual_size = torch.round(lengths[snt_id] * x.shape[1]).int()
+            # actual_size = torch.round(lengths[snt_id] * x.shape[1]).int()
 
             # computing statistics
             current_mean, current_std = self._compute_current_stats(
-                x[snt_id, 0:actual_size, ...]
+                x[snt_id, ...]
             )
 
             current_means.append(current_mean)

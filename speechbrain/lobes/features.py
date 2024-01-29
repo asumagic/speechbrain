@@ -131,7 +131,7 @@ class Fbank(torch.nn.Module):
             left_frames=left_frames, right_frames=right_frames,
         )
 
-    @fwd_default_precision(cast_inputs=torch.float32)
+    # @fwd_default_precision(cast_inputs=torch.float32)
     def forward(self, wav):
         """Returns a set of features generated from the input waveforms.
 

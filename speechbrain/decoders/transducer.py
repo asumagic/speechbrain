@@ -219,11 +219,11 @@ class TransducerBeamSearcher(torch.nn.Module):
             for i in range(positions.size(0)):
                 # Update hiddens only if
                 # 1- current prediction is non blank
-                if positions[i].item() != self.blank_id:
-                    hyp["prediction"][i].append(positions[i].item())
-                    hyp["logp_scores"][i] += logp_targets[i]
-                    input_PN[i][0] = positions[i]
-                    have_update_hyp.append(i)
+                # if positions[i].item() != self.blank_id:
+                hyp["prediction"][i].append(positions[i].item())
+                hyp["logp_scores"][i] += logp_targets[i]
+                input_PN[i][0] = positions[i]
+                have_update_hyp.append(i)
             if len(have_update_hyp) > 0:
                 # Select sentence to update
                 # And do a forward steps + generated hidden
