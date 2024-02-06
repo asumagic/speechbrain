@@ -32,46 +32,6 @@ check_torchaudio_backend()
 logger = logging.getLogger(__name__)
 
 
-def load_audio_pyav(uri, num_frames=-1, frame_offset=0, normalize=True):
-    """Mimics torchaudio.load using PyAV which bundles ffmpeg.
-
-    Arguments
-    ---------
-    uri: str
-        Path to file
-    num_frames: int
-        Number of frames to load. Default (-1) loads all frames
-    frame_offset: int
-        Frame from which to start loading. Default (0) loads all frames
-    normalize: bool
-        Whether to normalize output to float32 if int32
-    """
-
-    raw_buffer = io.BytesIO()
-    dtype = None
-    info = audio_info_pyav(uri)
-
-    with av.open(uri, mode="r", metadata_errors="ignore") as container:
-        for frame in container.decode(audio=0):
-            array = frame.to_ndarray()
-            dtype = array.dtype
-
-            raw_buffer.write(array)
-
-    audio = np.frombuffer(raw_buffer.getbuffer(), dtype=dtype)
-    audio = np.reshape(audio, [info.num_channels, -1], order="F")
-
-    if dtype.kind == "i" and normalize:
-        audio = audio.astype(np.float32) / np.iinfo(dtype).max
-
-    if num_frames >= 0:
-        audio = audio[:, frame_offset : frame_offset + num_frames]
-    elif frame_offset > 0:
-        audio = audio[:, frame_offset:]
-
-    return torch.from_numpy(audio), info.sample_rate
-
-
 @dataclass
 class AudioInfo:
     """Mimics torchaudio.AudioMetaData except ``bits_per_sample``
@@ -94,6 +54,25 @@ class AudioInfo:
     encoding: str
 
 
+def open_pyav_audio(uri):
+    return av.open(uri, mode="r", metadata_errors="ignore")
+
+
+def audio_info_pyav_container(container):
+    a = container.streams.audio[0]
+
+    stream_count = len(container.streams.audio)
+    if stream_count != 1:
+        raise ValueError(f"Expected 1 audio stream from source URI; got {stream_count} instead")
+
+    return AudioInfo(
+        sample_rate = a.rate,
+        num_frames = int(a.duration * a.time_base * a.rate),
+        num_channels = len(a.layout.channels),
+        encoding = a.name
+    )
+
+
 def audio_info_pyav(uri):
     """Mimics torchaudio.info using PyAV which bundles ffmpeg.
 
@@ -102,11 +81,54 @@ def audio_info_pyav(uri):
     uri: str
         Path to file
     """
-    with av.open(uri, mode="r", metadata_errors="ignore") as container:
-        a = container.streams.audio[0]
-        args = (a.rate, a.duration, len(a.layout.channels), a.name)
+    with open_pyav_audio(uri) as container:
+        return audio_info_pyav_container(container)
 
-    return AudioInfo(*args)
+
+def load_audio_pyav(uri, num_frames=-1, frame_offset=0, normalize=True):
+    """Mimics torchaudio.load using PyAV which bundles ffmpeg.
+
+    Arguments
+    ---------
+    uri: str
+        Path to file
+    num_frames: int
+        Number of frames to load. Default (-1) loads all frames
+    frame_offset: int
+        Frame from which to start loading. Default (0) loads all frames
+    normalize: bool
+        Whether to normalize output to float32 if int32
+    """
+
+    raw_buffer = io.BytesIO()
+    dtype = None
+
+    with open_pyav_audio(uri) as container:
+        info = audio_info_pyav_container(container)
+
+        for frame in container.decode(audio=0):
+            dtype = np.dtype(av.audio.frame.format_dtypes[frame.format.name])
+            plane_size_bytes = frame.samples * dtype.itemsize
+            for plane in frame.planes:
+                # use a memoryview over the buffer as we cannot slice the plane
+                # directly
+                plane_sized_buffer = memoryview(plane)[:plane_size_bytes]
+                raw_buffer.write(plane_sized_buffer)
+
+    audio = np.frombuffer(raw_buffer.getbuffer(), dtype=dtype)
+    audio = np.reshape(audio, [info.num_channels, -1])
+
+    # we do not free the raw_buffer here as numpy is only holding a view to it
+
+    if dtype.kind == "i" and normalize:
+        audio = audio.astype(np.float32) / np.iinfo(dtype).max
+
+    if num_frames >= 0:
+        audio = audio[:, frame_offset : frame_offset + num_frames]
+    elif frame_offset > 0:
+        audio = audio[:, frame_offset:]
+
+    return torch.from_numpy(audio), info.sample_rate
 
 
 def load_data_json(json_path, replacements={}):
@@ -241,6 +263,28 @@ def load_data_csv(csv_path, replacements={}):
     return result
 
 
+def pyav_measure_container_length(container):
+    a = container.streams.audio[0]
+
+    cumulative_duration = 0
+    for packet in container.demux(audio=0):
+        frame_index = 0
+        for frame in packet.decode():
+            cumulative_duration += frame.samples
+
+            expected_samples = packet.duration * a.time_base * a.rate
+            real_samples = frame.samples
+
+            if expected_samples != real_samples:
+                print(expected_samples, real_samples)
+            frame_index += 1
+        
+        if frame_index == 0:
+            print("no frame in packet wtf? len", packet.duration * a.time_base * a.rate)
+
+    return cumulative_duration
+
+
 def read_audio_info(path):
     """Retrieves audio metadata from a file path. Behaves identically to
     audio_info_pyav, but attempts to fix frame_count for mp3 files.
@@ -265,15 +309,12 @@ def read_audio_info(path):
     the processing time.
     """
 
-    info = audio_info_pyav(path)
+    with open_pyav_audio(path) as container:
+        info = audio_info_pyav_container(container)
 
-    # Certain file formats, such as MP3, do not provide a reliable way to
-    # query file duration from metadata (when there is any).
-    if path.endswith(".mp3"):
-        channels_data, sample_rate = load_audio_pyav(path, normalize=False)
-
-        info.num_frames = channels_data.size(1)
-        info.sample_rate = sample_rate  # because we might as well
+        if container.format.name == "mp3":
+            old_num_frames = info.num_frames
+            info.num_frames = pyav_measure_container_length(container)
 
     return info
 
