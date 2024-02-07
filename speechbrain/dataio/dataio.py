@@ -13,6 +13,7 @@ Authors
  * Peter Plantinga 2024
 """
 import av
+from enum import StrEnum
 import io
 import os
 import torch
@@ -85,6 +86,10 @@ def audio_info_pyav(uri):
         return audio_info_pyav_container(container)
 
 
+def load_audio_torchaudio(uri, backend, num_frames=-1, frame_offset=0, normalize=True):
+    torchaudio.set_audio_backend(backend)
+
+
 def load_audio_pyav(uri, num_frames=-1, frame_offset=0, normalize=True):
     """Mimics torchaudio.load using PyAV which bundles ffmpeg.
 
@@ -100,28 +105,45 @@ def load_audio_pyav(uri, num_frames=-1, frame_offset=0, normalize=True):
         Whether to normalize output to float32 if int32
     """
 
-    raw_buffer = io.BytesIO()
     dtype = None
 
     with open_pyav_audio(uri) as container:
         info = audio_info_pyav_container(container)
 
+        a = container.streams.audio[0]
+        audio_format = a.codec_context.format
+
+        dtype = np.dtype(av.audio.frame.format_dtypes[audio_format.name])
+        is_planar = audio_format.is_planar
+
+        # Allocate plane buffers.
+        # Non-planar formats interleave channels in a single AV plane,
+        # e.g. [c1, c2, c1, c2].
+        # Planar formats use one plane per channel, e.g. [[c1, c1], [c2, c2]].
+        if is_planar:
+            plane_buffers = tuple(io.BytesIO() for _i in range(info.num_channels))
+        else:
+            plane_buffers = (io.BytesIO(), )
+
         for frame in container.decode(audio=0):
-            dtype = np.dtype(av.audio.frame.format_dtypes[frame.format.name])
             plane_size_bytes = frame.samples * dtype.itemsize
-            for plane in frame.planes:
-                # use a memoryview over the buffer as we cannot slice the plane
-                # directly
-                plane_sized_buffer = memoryview(plane)[:plane_size_bytes]
-                raw_buffer.write(plane_sized_buffer)
+            for target, plane in zip(plane_buffers, map(memoryview, frame.planes)):
+                target.write(plane[:plane_size_bytes])
 
-    audio = np.frombuffer(raw_buffer.getbuffer(), dtype=dtype)
-    audio = np.reshape(audio, [info.num_channels, -1])
+    plane_buffers = [np.frombuffer(buf.getbuffer(), dtype=dtype) for buf in plane_buffers]
 
-    # we do not free the raw_buffer here as numpy is only holding a view to it
+    if not is_planar:
+        audio = plane_buffers[0]
+        audio = np.reshape(audio, [-1, info.num_channels])
+        audio = np.transpose(audio)
+    if info.num_channels == 1:
+        audio = plane_buffers[0]
+        audio = np.reshape(audio, [1, -1])
+    else:
+        audio = np.vstack(plane_buffers)
 
     if dtype.kind == "i" and normalize:
-        audio = audio.astype(np.float32) / np.iinfo(dtype).max
+        audio = audio.astype(np.float32, copy=False) / np.iinfo(dtype).max
 
     if num_frames >= 0:
         audio = audio[:, frame_offset : frame_offset + num_frames]
