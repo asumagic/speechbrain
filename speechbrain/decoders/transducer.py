@@ -6,6 +6,13 @@ Author:
 """
 import torch
 from functools import partial
+from typing import Tuple, List
+
+
+def pytorch_is_stupid(mask, a, b):
+    a = a * mask
+    b = b * ~mask
+    return a + b
 
 
 class TransducerBeamSearcher(torch.nn.Module):
@@ -88,7 +95,7 @@ class TransducerBeamSearcher(torch.nn.Module):
         self,
         decode_network_lst,
         tjoint,
-        classifier_network,
+        classifier_network: torch.nn.ModuleList,
         blank_id,
         beam_size=4,
         nbest=5,
@@ -140,7 +147,7 @@ class TransducerBeamSearcher(torch.nn.Module):
         return hyps
 
     def transducer_greedy_decode(
-        self, tn_output, hidden_state=None, return_hidden=False
+        self, tn_output, hidden_state: Tuple[torch.Tensor, torch.Tensor]=None, return_hidden=False
     ):
         """Transducer greedy decoder is a greedy decoder over batch which apply Transducer rules:
             1- for each time step in the Transcription Network (TN) output:
@@ -196,9 +203,9 @@ class TransducerBeamSearcher(torch.nn.Module):
             torch.ones(
                 (tn_output.size(0), 1),
                 device=tn_output.device,
-                dtype=torch.int32,
+                dtype=torch.long,
             )
-            * self.blank_id
+            * 0
         )
 
         if hidden_state is None:
@@ -218,33 +225,24 @@ class TransducerBeamSearcher(torch.nn.Module):
             logp_targets, positions = torch.max(
                 log_probs.squeeze(1).squeeze(1), dim=1
             )
-            # Batch hidden update
-            have_update_hyp = []
-            for i in range(positions.size(0)):
-                # Update hiddens only if
-                # 1- current prediction is non blank
-                if positions[i].item() != self.blank_id:
-                    hyp["prediction"][i].append(positions[i].item())
-                    hyp["logp_scores"][i] += logp_targets[i]
-                    input_PN[i][0] = positions[i]
-                    have_update_hyp.append(i)
-            if len(have_update_hyp) > 0:
-                # Select sentence to update
-                # And do a forward steps + generated hidden
-                (
-                    selected_input_PN,
-                    selected_hidden,
-                ) = self._get_sentence_to_update(
-                    have_update_hyp, input_PN, hidden
-                )
-                selected_out_PN, selected_hidden = self._forward_PN(
-                    selected_input_PN, self.decode_network_lst, selected_hidden
-                )
-                # update hiddens and out_PN
-                out_PN[have_update_hyp] = selected_out_PN
-                hidden = self._update_hiddens(
-                    have_update_hyp, selected_hidden, hidden
-                )
+            # Update hiddens only if current prediction is non blank
+            have_update_hyp = torch.ne(positions, self.blank_id)
+            input_PN = pytorch_is_stupid(have_update_hyp, positions, input_PN)
+            # for i in range(positions.size(0)):
+            #     # if positions[i].item() != self.blank_id:
+            #     #     # hyp["prediction"][i].append(positions[i].item())
+            #     #     # hyp["logp_scores"][i] += logp_targets[i]
+            #     #     input_PN[i][0] = positions[i]
+            #     #     have_update_hyp.append(i)
+
+            selected_out_PN, selected_hidden = self._forward_PN(
+                input_PN, self.decode_network_lst, hidden
+            )
+            # update hiddens and out_PN
+            out_PN = pytorch_is_stupid(have_update_hyp, selected_out_PN, out_PN)
+            hidden = self._update_hiddens(
+                have_update_hyp, selected_hidden, hidden
+            )
 
         ret = (
             hyp["prediction"],
@@ -422,8 +420,8 @@ class TransducerBeamSearcher(torch.nn.Module):
             out = self.tjoint(h_i, out_PN,)
             # forward the output layers + activation + save logits
             out = self._forward_after_joint(out, self.classifier_network)
-            log_probs = self.softmax(out)
-        return log_probs
+            # log_probs = self.softmax(out)
+        return out
 
     def _lm_forward_step(self, inp_tokens, memory):
         """This method should implement one step of
@@ -501,8 +499,8 @@ class TransducerBeamSearcher(torch.nn.Module):
         """
 
         if isinstance(hidden, tuple):
-            hidden[0][:, selected_sentences, :] = updated_hidden[0]
-            hidden[1][:, selected_sentences, :] = updated_hidden[1]
+            hidden[0][:] = pytorch_is_stupid(selected_sentences, updated_hidden[0], hidden[0])
+            hidden[1][:] = pytorch_is_stupid(selected_sentences, updated_hidden[1], hidden[1])
         else:
             hidden[:, selected_sentences, :] = updated_hidden
         return hidden
@@ -543,7 +541,7 @@ class TransducerBeamSearcher(torch.nn.Module):
                 out_PN = layer(out_PN)
         return out_PN, hidden
 
-    def _forward_after_joint(self, out, classifier_network):
+    def _forward_after_joint(self, out, classifier_network: List[torch.nn.Module]):
         """Compute forward-pass through a list of classifier neural network.
 
         Arguments

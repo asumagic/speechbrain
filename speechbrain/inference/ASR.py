@@ -761,10 +761,16 @@ class StreamingASR(Pretrained):
             Encoded output, of a model-dependent shape."""
 
         if chunk_len is None:
-            chunk_len = torch.ones((chunk.size(0),))
+            chunk_len = torch.ones((chunk.size(0),), device=self.device)
 
-        chunk = chunk.float()
-        chunk, chunk_len = chunk.to(self.device), chunk_len.to(self.device)
+        if self.device != "cpu":
+            if chunk.device == "cpu":
+                chunk = chunk.pin_memory()
+            if chunk_len.device == "cpu":
+                chunk_len = chunk_len.pin_memory()
+
+        chunk = chunk.to(self.device, non_blocking=True)
+        chunk_len = chunk_len.to(self.device, non_blocking=True)
 
         assert chunk.shape[-1] <= self.get_chunk_size_frames(context.config)
 
@@ -861,10 +867,10 @@ class StreamingASR(Pretrained):
         """
 
         if chunk_len is None:
-            chunk_len = torch.ones((chunk.size(0),))
+            chunk_len = torch.ones((chunk.size(0),), device=self.device)
 
-        chunk = chunk.float()
-        chunk, chunk_len = chunk.to(self.device), chunk_len.to(self.device)
+        chunk = chunk.pin_memory().to(self.device, non_blocking=True)
+        chunk_len = chunk_len.pin_memory().to(self.device, non_blocking=True)
 
         x = self.encode_chunk(context, chunk, chunk_len)
         words, _tokens = self.decode_chunk(context, x)
