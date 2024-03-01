@@ -48,7 +48,7 @@ ckpt_interval_minutes: 5 # save checkpoint every N min
 # Please, set your parameters accordingly.
 number_of_epochs: 100
 warmup_steps: 25000
-num_workers: 4
+num_workers: 8
 batch_size_valid: 4
 lr: 0.0008
 weight_decay: 0.01
@@ -81,12 +81,12 @@ streaming: True  # controls all Dynamic Chunk Training & chunk size & left conte
 # Configuration for Dynamic Chunk Training.
 # In this model, a chunk is roughly equivalent to 40ms of audio.
 dynchunktrain_config_sampler: !new:speechbrain.utils.dynamic_chunk_training.DynChunkTrainConfigRandomSampler # yamllint disable-line rule:line-length
-   chunkwise_prob: 0.6 # Probability during a batch to limit attention and sample a random chunk size in the following range
-   chunk_size_min: 8 # Minimum chunk size (if in a DynChunkTrain batch)
-   chunk_size_max: 32 # Maximum chunk size (if in a DynChunkTrain batch)
-   limited_left_context_prob: 0.75 # If in a DynChunkTrain batch, the probability during a batch to restrict left context to a random number of chunks
-   left_context_chunks_min: 2 # Minimum left context size (in # of chunks)
-   left_context_chunks_max: 32 # Maximum left context size (in # of chunks)
+   chunkwise_prob: 0.8 # Probability during a batch to limit attention and sample a random chunk size in the following range
+   chunk_size_min: 1 # Minimum chunk size (if in a DynChunkTrain batch)
+   chunk_size_max: 16 # Maximum chunk size (if in a DynChunkTrain batch)
+   limited_left_context_prob: 1.0 # If in a DynChunkTrain batch, the probability during a batch to restrict left context to a random number of chunks
+   left_context_chunks_min: 0 # Minimum left context size (in # of chunks)
+   left_context_chunks_max: 16 # Maximum left context size (in # of chunks)
    # If you specify a valid/test config, you can optionally have evaluation be
    # done with a specific DynChunkTrain configuration.
    # valid_config: !new:speechbrain.utils.dynamic_chunk_training.DynChunkTrainConfig
@@ -98,6 +98,7 @@ dynchunktrain_config_sampler: !new:speechbrain.utils.dynamic_chunk_training.DynC
 train_dataloader_opts:
    batch_size: !ref <batch_size>
    num_workers: !ref <num_workers>
+   pin_memory_device: True
 
 valid_dataloader_opts:
    batch_size: !ref <batch_size_valid>
@@ -109,8 +110,8 @@ test_dataloader_opts:
 # Adjust grad_accumulation_factor depending on the DDP node count (here 3)
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 150
-max_batch_len_val: 50 # we reduce it as the beam is much wider (VRAM)
+max_batch_len: 300
+max_batch_len_val: 500 # we reduce it as the beam is much wider (VRAM)
 num_bucket: 200
 
 dynamic_batch_sampler:
@@ -119,7 +120,7 @@ dynamic_batch_sampler:
    num_buckets: !ref <num_bucket>
    shuffle_ex: True # if true re-creates batches at each epoch shuffling examples.
    batch_ordering: random
-   max_batch_ex: 256
+   max_batch_ex: 99999
 
 ####################### Model Parameters #######################################
 
@@ -151,7 +152,7 @@ expand_beam: 2.3
 lm_weight: 0.50
 
 # If True uses torchaudio loss. Otherwise, the numba one
-use_torchaudio: False
+use_torchaudio: True
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
    limit: !ref <number_of_epochs>
@@ -217,16 +218,21 @@ fea_augment: !new:speechbrain.augment.augmenter.Augmenter
 ############################## Models ##########################################
 
 CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
-   input_shape: (8, 10, 80)
-   num_blocks: 2
+   input_shape: (8, 10, 80, 1)
+   num_blocks: 3
    num_layers_per_block: 1
-   out_channels: (64, 32)
-   kernel_sizes: (3, 3)
-   strides: (2, 2)
-   residuals: (False, False)
+   out_channels: (8, 64, 128)
+   kernel_sizes: (3, 3, 3)
+   strides: (2, 2, 2)
+   residuals: (False, False, False)
+   conv_init: kaiming
+   conv_modules:
+      - !name:speechbrain.nnet.CNN.Conv2d
+      - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
+      - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
 
 Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR # yamllint disable-line rule:line-length
-   input_size: 640
+   input_size: 1280
    tgt_vocab: !ref <output_neurons>
    d_model: !ref <d_model>
    nhead: !ref <nhead>
@@ -239,6 +245,7 @@ Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.Transforme
    attention_type: RelPosMHAXL
    normalize_before: True
    causal: False
+   kernel_size: 9
 
 # We must call an encoder wrapper so the decoder isn't run (we don't have any)
 enc: !new:speechbrain.lobes.models.transformer.TransformerASR.EncoderWrapper

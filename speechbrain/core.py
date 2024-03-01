@@ -1205,14 +1205,14 @@ class Brain:
             scaled_loss = self.scaler.scale(
                 loss / self.grad_accumulation_factor
             )
-            self.check_loss_isfinite(scaled_loss)
+            # self.check_loss_isfinite(scaled_loss)
             scaled_loss.backward()
 
         if should_step:
             self.optimizers_step()
 
         self.on_fit_batch_end(batch, outputs, loss, should_step)
-        return loss.detach().cpu()
+        return loss.detach()
 
     def check_loss_isfinite(self, loss):
         """Check if the loss is finite.
@@ -1399,17 +1399,18 @@ class Brain:
         ) as t:
             if self.profiler is not None:
                 self.profiler.start()
-            for batch in t:
+            for i, batch in enumerate(t):
                 if self._optimizer_step_limit_exceeded:
                     logger.info("Train iteration limit exceeded")
                     break
                 self.step += 1
                 steps_since_ckpt += 1
                 loss = self.fit_batch(batch)
-                self.avg_train_loss = self.update_average(
-                    loss, self.avg_train_loss
-                )
-                t.set_postfix(train_loss=self.avg_train_loss)
+                if i % 50 == 0:
+                    self.avg_train_loss = self.update_average(
+                        loss, self.avg_train_loss
+                    )
+                    t.set_postfix(train_loss=self.avg_train_loss)
 
                 if self.profiler is not None:
                     self.profiler.step()

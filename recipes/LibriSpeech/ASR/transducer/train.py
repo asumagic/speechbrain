@@ -47,11 +47,13 @@ logger = logging.getLogger(__name__)
 
 # Define training procedure
 
+torch.cuda.set_per_process_memory_fraction(0.8)
+torch.backends.cudnn.benchmark = False
 
 class ASR(sb.Brain):
     def compute_forward(self, batch, stage):
         """Forward computations from the waveform batches to the output probabilities."""
-        batch = batch.to(self.device)
+        batch = batch.to(self.device, non_blocking=True)
         wavs, wav_lens = batch.sig
         tokens_with_bos, token_with_bos_lens = batch.tokens_bos
 
@@ -392,6 +394,7 @@ def dataio_prepare(hparams):
             length_func=lambda x: x["duration"],
             shuffle=dynamic_hparams["shuffle_ex"],
             batch_ordering=dynamic_hparams["batch_ordering"],
+            max_batch_ex=dynamic_hparams["max_batch_ex"],
         )
 
         valid_batch_sampler = DynamicBatchSampler(
@@ -401,6 +404,7 @@ def dataio_prepare(hparams):
             length_func=lambda x: x["duration"],
             shuffle=dynamic_hparams["shuffle_ex"],
             batch_ordering=dynamic_hparams["batch_ordering"],
+            max_batch_ex=dynamic_hparams["max_batch_ex"],
         )
 
     return (
@@ -490,6 +494,9 @@ if __name__ == "__main__":
         train_dataloader_opts = {
             "batch_sampler": train_bsampler,
             "num_workers": hparams["num_workers"],
+            "prefetch_factor": 16,
+            "persistent_workers": True,
+            "pin_memory": True,
         }
 
     if valid_bsampler is not None:
