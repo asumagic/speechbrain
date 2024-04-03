@@ -16,11 +16,14 @@ jobs:
             matrix:
                 python-version: [3.8, 3.12]
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v4
             - name: Set up Python ${{ matrix.python-version }}
-              uses: actions/setup-python@v1
+              uses: actions/setup-python@v5
               with:
                   python-version: ${{ matrix.python-version }}
+                  cache: pip
+                  cache-dependency-path: |
+                      *requirements.txt
             - name: Install sox
               run: |
                   sudo apt-get update
@@ -35,17 +38,16 @@ jobs:
               run: python -c "import sys; print(sys.version)"
             - name: Full dependencies
               run: |
-                  sudo apt-get update
                   # up to k2 compatible torch version
-                  pip install torch==2.2.1 torchaudio==2.2.1
-                  pip install -r requirements.txt
-                  pip install --editable .
+                  pip install torch==2.2.1+cpu torchaudio==2.2.1+cpu --index-url https://download.pytorch.org/whl/cpu
+                  pip install k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html
                   pip install ctc-segmentation
-                  pip install k2==1.24.4.dev20240223+cpu.torch2.2.1 -f https://k2-fsa.github.io/k2/cpu.html
                   pip install protobuf
                   pip install kaldilm==1.15.1
                   pip install spacy==3.7.4
                   pip install flair==0.13.1
+                  pip install -r requirements.txt
+                  pip install --editable . --no-dependencies
             - name: Consistency tests with pytest
               run: |
                   pytest tests/consistency
