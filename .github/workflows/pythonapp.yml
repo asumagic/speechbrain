@@ -40,7 +40,7 @@ jobs:
             - name: Full dependencies
               run: |
                   pip install uv
-                  uv pip install torch==2.2.1+cpu torchaudio==2.2.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu ctc-segmentation kaldilm==1.15.1 spacy==3.7.4 flair==0.13.1 -r requirements.txt --editable . k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html
+                  uv pip install --system torch==2.2.1+cpu torchaudio==2.2.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu ctc-segmentation kaldilm==1.15.1 spacy==3.7.4 flair==0.13.1 -r requirements.txt --editable . k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html
             - name: Consistency tests with pytest
               run: |
                   pytest tests/consistency
