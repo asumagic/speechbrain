@@ -11,6 +11,11 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v2
+            - uses: actions/cache@v4
+              id: cache-uv
+              with:
+                  path: ~/.cache/uv
+                  key: ${{ runner.os }}-python-${{ matrix.python-version }}-docs-uv
             - name: Setup Python 3.8
               uses: actions/setup-python@v2
               with:
@@ -22,12 +27,9 @@ jobs:
                       *requirements.txt
             - name: Full dependencies
               run: |
-                  # up to k2 compatible torch version
-                  pip install torch==2.2.1+cpu torchaudio==2.2.1+cpu --index-url https://download.pytorch.org/whl/cpu
-                  pip install k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html
-                  pip install -r requirements.txt
-                  pip install -r docs/docs-requirements.txt
-                  pip install --editable . --no-dependencies
+                  pip install uv
+                  uv pip install --system -r requirements.txt -r docs/docs-requirements.txt torch==2.2.1+cpu torchaudio==2.2.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html kaldilm==1.15.1 spacy==3.7.4 flair==0.13.1
+                  uv pip install --system --editable . --no-deps  # already installed pinned deps from requirements.txt, we're good
             - name: Generate docs
               run: |
                   cd docs
