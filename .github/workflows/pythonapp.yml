@@ -25,10 +25,18 @@ jobs:
                   # cache for {lint-,ci-,}requirements.txt
                   cache-dependency-path: |
                       *requirements.txt
+            - name: Full dependencies
+              run: |
+                  pip install uv
+                  uv pip install --system torch==2.2.1+cpu torchaudio==2.2.1+cpu --index-url https://download.pytorch.org/whl/cpu
+                  uv pip install --system k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html
+                  uv pip install --system ctc-segmentation
+                  uv pip install --system kaldilm==1.15.1 spacy==3.7.4 flair==0.13.1
+                  uv pip install --system -r requirements.txt --editable .
             - name: Install sox
               run: |
                   sudo apt-get update
-                  sudo apt install sox libsox-dev
+                  sudo apt install sox
             # Installing only SoX for now due to FFmpeg issues on the CI server with Torchaudio 2.1.
             # FFmpeg works fine on all other machines. We'll switch back when the CI server is fixed.
             #- name: Install ffmpeg
@@ -37,10 +45,6 @@ jobs:
             #      sudo apt-get install -y ffmpeg
             - name: Display Python version
               run: python -c "import sys; print(sys.version)"
-            - name: Full dependencies
-              run: |
-                  pip install uv
-                  uv pip install --system torch==2.2.1+cpu torchaudio==2.2.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu ctc-segmentation kaldilm==1.15.1 spacy==3.7.4 flair==0.13.1 -r requirements.txt --editable . k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html
             - name: Consistency tests with pytest
               run: |
                   pytest tests/consistency
