@@ -21,26 +21,20 @@ jobs:
               uses: actions/setup-python@v5
               with:
                   python-version: ${{ matrix.python-version }}
-                  cache: pip
-                  # cache for {lint-,ci-,}requirements.txt
-                  cache-dependency-path: |
-                      *requirements.txt
             - name: Full dependencies
               run: |
                   pip install uv
                   uv pip install --system -r requirements.txt torch==2.2.1+cpu torchaudio==2.2.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html kaldilm==1.15.1 spacy==3.7.4 flair==0.13.1
                   uv pip install --system ctc-segmentation  # ctc-segmentation is funky with uv due to their oldest-numpy-version dependency
                   uv pip install --system --editable . --no-deps  # already installed pinned deps from requirements.txt, we're good
-            - name: Install sox
-              run: |
-                  sudo apt-get update
-                  sudo apt install sox
-            # Installing only SoX for now due to FFmpeg issues on the CI server with Torchaudio 2.1.
-            # FFmpeg works fine on all other machines. We'll switch back when the CI server is fixed.
-            #- name: Install ffmpeg
-            #  run: |
-            #      sudo apt-get update
-            #      sudo apt-get install -y ffmpeg
+            # - name: Install sox
+            #   run: |
+            #       sudo apt-get update
+            #       sudo apt install sox libsox-dev
+            - name: Install ffmpeg
+             run: |
+                 sudo apt-get update
+                 sudo apt-get install -y ffmpeg
             - name: Display Python version
               run: python -c "import sys; print(sys.version)"
             - name: Consistency tests with pytest
