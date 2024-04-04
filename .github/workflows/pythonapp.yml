@@ -39,16 +39,7 @@ jobs:
               run: python -c "import sys; print(sys.version)"
             - name: Full dependencies
               run: |
-                  # up to k2 compatible torch version
-                  pip install torch==2.2.1+cpu torchaudio==2.2.1+cpu --index-url https://download.pytorch.org/whl/cpu
-                  pip install k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html
-                  pip install ctc-segmentation
-                  pip install protobuf
-                  pip install kaldilm==1.15.1
-                  pip install spacy==3.7.4
-                  pip install flair==0.13.1
-                  pip install -r requirements.txt
-                  pip install --editable . --no-dependencies
+                  pip install torch==2.2.1+cpu torchaudio==2.2.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu ctc-segmentation kaldilm==1.15.1 spacy==3.7.4 flair==0.13.1 -r requirements.txt --editable . --no-dependencies k2==1.24.4.dev20240223+cpu.torch2.2.1 --find-links https://k2-fsa.github.io/k2/cpu.html
             - name: Consistency tests with pytest
               run: |
                   pytest tests/consistency
