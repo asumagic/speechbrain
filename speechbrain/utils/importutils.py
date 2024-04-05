@@ -247,6 +247,6 @@ def deprecated_redirect(
     if also_lazy_export:
         package_sep_idx = old_import.rfind(".")
         old_package = old_import[:package_sep_idx]
-        old_module = old_import[package_sep_idx+1:]
+        old_module = old_import[package_sep_idx + 1 :]
         if not hasattr(sys.modules[old_package], old_module):
             setattr(sys.modules[old_package], old_module, redirect)
