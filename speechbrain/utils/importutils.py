@@ -40,17 +40,21 @@ def find_imports(file_path: str, find_subpackages: bool = False) -> List[str]:
         if filename.endswith(".py"):
             imports.append(filename[:-3])
 
-        if find_subpackages and os.path.isdir(os.path.join(module_dir, filename)):
+        if find_subpackages and os.path.isdir(
+            os.path.join(module_dir, filename)
+        ):
             imports.append(filename)
 
     return imports
 
 
-def lazy_export_all(init_file_path: str, package: str, export_subpackages: bool = False) -> List[str]:
+def lazy_export_all(
+    init_file_path: str, package: str, export_subpackages: bool = False
+) -> List[str]:
     """Returns a function that a package's `__getattr__` should get assigned to.
     This makes all scripts under a module lazily importable merely by accessing
     them; e.g. `foo/bar.py` could be accessed with `foo.bar.some_func()`.
-    
+
     Arguments
     ---------
     init_file_path : str
@@ -64,14 +68,22 @@ def lazy_export_all(init_file_path: str, package: str, export_subpackages: bool 
         directly as well.
     """
 
-    known_imports = find_imports(init_file_path, find_subpackages=export_subpackages)
+    known_imports = find_imports(
+        init_file_path, find_subpackages=export_subpackages
+    )
     print(f"from {package} discovered {known_imports}")
 
     def _getter(name):
         """`__getattr__`-compatible function being returned"""
 
+        print(f"trying to import {package}.{name}")
+
         if name in known_imports:
-            importlib.import_module(f".{name}", package)
+            return importlib.import_module(f".{name}", package)
+
+        raise ModuleNotFoundError(
+            f"module '{package}' has no attribute '{name}'"
+        )
 
     return _getter
 
