@@ -8,8 +8,72 @@ Author
 from types import ModuleType
 import importlib
 import sys
-from typing import Optional
+import os
+from typing import Optional, List
 import warnings
+
+
+def find_imports(file_path: str, find_subpackages: bool = False) -> List[str]:
+    """Returns a list of importable scripts in the same module as the specified
+    file. e.g. if you have `foo/__init__.py` and `foo/bar.py`, then
+    `files_in_module("foo/__init__.py")` then the result will be `["bar"]`.
+
+    Not recursive; this is only for a given module.
+
+    Arguments
+    ---------
+    file_path : str
+        Path of the file to navigate the directory of. Typically the
+        `__init__.py` path this is called from, using `__file__`.
+    find_subpackages : bool
+        Whether we should find the subpackages as well.
+    """
+
+    imports = []
+
+    module_dir = os.path.dirname(file_path)
+
+    for filename in os.listdir(module_dir):
+        if filename.startswith("__"):
+            continue
+
+        if filename.endswith(".py"):
+            imports.append(filename[:-3])
+
+        if find_subpackages and os.path.isdir(os.path.join(module_dir, filename)):
+            imports.append(filename)
+
+    return imports
+
+
+def lazy_export_all(init_file_path: str, package: str, export_subpackages: bool = False) -> List[str]:
+    """Returns a function that a package's `__getattr__` should get assigned to.
+    This makes all scripts under a module lazily importable merely by accessing
+    them; e.g. `foo/bar.py` could be accessed with `foo.bar.some_func()`.
+    
+    Arguments
+    ---------
+    init_file_path : str
+        Path of the `__init__.py` file, usually determined with `__file__` from
+        there.
+    package : str
+        The relevant package, usually determined with `__name__` from the
+        `__init__.py`.
+    export_subpackages : bool
+        Whether we should make the subpackages (subdirectories) available
+        directly as well.
+    """
+
+    known_imports = find_imports(init_file_path, find_subpackages=export_subpackages)
+    print(f"from {package} discovered {known_imports}")
+
+    def _getter(name):
+        """`__getattr__`-compatible function being returned"""
+
+        if name in known_imports:
+            importlib.import_module(f".{name}", package)
+
+    return _getter
 
 
 class LegacyModuleRedirect(ModuleType):
