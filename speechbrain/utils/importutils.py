@@ -13,6 +13,103 @@ from typing import Optional, List
 import warnings
 
 
+class LazyModule(ModuleType):
+    """Defines a module type that lazily imports the target module, thus
+    exposing
+    defined without immediately importing the target module needlessly."""
+
+    # TODO: args
+
+    def __init__(
+        self,
+        name: str,
+        target: str,
+        package: str,
+    ):
+        super().__init__(name)
+        self.target = target
+        self.lazy_module = None
+        self.package = package
+
+    def _ensure_module(self) -> ModuleType:
+        """Ensures that the target module is imported and available as
+        `self.lazy_module`, also returning it."""
+
+        if self.lazy_module is None:
+            try:
+                self.lazy_module = importlib.import_module(f".{self.target}", self.package)
+            except Exception as e:
+                raise ImportError(f"Lazy import of {repr(self)} failed") from e
+
+        return self.lazy_module
+
+    def __repr__(self) -> str:
+        return f"LazyModule(package={self.package}, target={self.target}, loaded={self.lazy_module is not None})"
+
+    def __getattr__(self, attr):
+        # NOTE: exceptions here get eaten and not displayed
+        return getattr(self._ensure_module(), attr)
+
+
+class DeprecatedModuleRedirect(LazyModule):
+    """Defines a module type that lazily imports the target module using
+    :class:`~LazyModule`, but logging a deprecation warning when the import
+    is actually being performed.
+
+    This is only the module type itself; if you want to define a redirection,
+    use :func:`~deprecated_redirect` instead.
+
+    Arguments
+    ---------
+    old_import : str
+        Old module import path e.g. `mypackage.myoldmodule`
+    new_import : str
+        New module import path e.g. `mypackage.mynewcoolmodule.mycoolsubmodule`
+    extra_reason : str, optional
+        If specified, extra text to attach to the warning for clarification
+        (e.g. justifying why the move has occurred, or additional problems to
+        look out for).
+    """
+
+    def __init__(
+        self,
+        old_import: str,
+        new_import: str,
+        package: str,
+        extra_reason: Optional[str] = None,
+    ):
+        super().__init__(name=old_import, target=new_import, package=package)
+        self.old_import = old_import
+        self.extra_reason = extra_reason
+
+    def _redirection_warn(self):
+        """Emits the warning for the redirection (with the extra reason if
+        provided)."""
+
+        warning_text = (
+            f"Module '{self.old_import}' was deprecated, redirecting to "
+            f"'{self.target}'. Please update your script."
+        )
+
+        if self.extra_reason is not None:
+            warning_text += f" {self.extra_reason}"
+
+        # NOTE: we are not using DeprecationWarning because this gets ignored by
+        # default, even though we consider the warning to be rather important
+        # in the context of SB
+
+        warnings.warn(
+            warning_text,
+            # category=DeprecationWarning,
+            stacklevel=4,  # _ensure_module <- __getattr__ <- python <- user
+        )
+
+    def _ensure_module(self) -> ModuleType:
+        if self.lazy_module is None:
+            self._redirection_warn()
+
+        return super()._ensure_module()
+
 def find_imports(file_path: str, find_subpackages: bool = False) -> List[str]:
     """Returns a list of importable scripts in the same module as the specified
     file. e.g. if you have `foo/__init__.py` and `foo/bar.py`, then
@@ -50,9 +147,8 @@ def find_imports(file_path: str, find_subpackages: bool = False) -> List[str]:
 
 def lazy_export_all(
     init_file_path: str, package: str, export_subpackages: bool = False
-) -> List[str]:
-    """Returns a function that a package's `__getattr__` should get assigned to.
-    This makes all scripts under a module lazily importable merely by accessing
+):
+    """Makes all scripts under a module lazily importable merely by accessing
     them; e.g. `foo/bar.py` could be accessed with `foo.bar.some_func()`.
 
     Arguments
@@ -68,93 +164,18 @@ def lazy_export_all(
         directly as well.
     """
 
-    known_imports = find_imports(
+    for name in find_imports(
         init_file_path, find_subpackages=export_subpackages
-    )
-    print(f"from {package} discovered {known_imports}")
-
-    def _getter(name):
-        """`__getattr__`-compatible function being returned"""
-
-        print(f"trying to import {package}.{name}")
-
-        if name in known_imports:
-            return importlib.import_module(f".{name}", package)
-
-        raise ModuleNotFoundError(
-            f"module '{package}' has no attribute '{name}'"
-        )
-
-    return _getter
-
-
-class LegacyModuleRedirect(ModuleType):
-    """Defines a module type that lazily imports the target module (and warns
-    about the deprecation when this happens), thus allowing deprecated
-    redirections to be defined without immediately importing the target module
-    needlessly.
-
-    This is only the module type itself; if you want to define a redirection,
-    use :func:`~deprecated_redirect` instead.
-
-    Arguments
-    ---------
-    old_import : str
-        Old module import path e.g. `mypackage.myoldmodule`
-    new_import : str
-        New module import path e.g. `mypackage.mynewcoolmodule.mycoolsubmodule`
-    extra_reason : str, optional
-        If specified, extra text to attach to the warning for clarification
-        (e.g. justifying why the move has occurred, or additional problems to
-        look out for).
-    """
-
-    def __init__(
-        self,
-        old_import: str,
-        new_import: str,
-        extra_reason: Optional[str] = None,
     ):
-        super().__init__(old_import)
-        self.old_import = old_import
-        self.new_import = new_import
-        self.extra_reason = extra_reason
-        self.lazy_module = None
+        # already imported for real (e.g. utils.importutils itself)
+        if hasattr(sys.modules[package], name):
+            continue
 
-    def _redirection_warn(self):
-        """Emits the warning for the redirection (with the extra reason if
-        provided)."""
-
-        warning_text = (
-            f"Module '{self.old_import}' was deprecated, redirecting to "
-            f"'{self.new_import}'. Please update your script."
-        )
-
-        if self.extra_reason is not None:
-            warning_text += f" {self.extra_reason}"
-
-        # NOTE: we are not using DeprecationWarning because this gets ignored by
-        # default, even though we consider the warning to be rather important
-        # in the context of SB
-
-        warnings.warn(
-            warning_text,
-            # category=DeprecationWarning,
-            stacklevel=3,
-        )
-
-    def __getattr__(self, attr):
-        # NOTE: exceptions here get eaten and not displayed
-
-        if self.lazy_module is None:
-            self._redirection_warn()
-            self.lazy_module = importlib.import_module(self.new_import)
-
-        return getattr(self.lazy_module, attr)
+        setattr(sys.modules[package], name, LazyModule(name, name, package))
 
 
 def deprecated_redirect(
-    old_import: str, new_import: str, extra_reason: Optional[str] = None
+    old_import: str, new_import: str, package: str, extra_reason: Optional[str] = None
 ) -> None:
     """Patches the module list to add a lazy redirection from `old_import` to
     `new_import`, emitting a `DeprecationWarning` when imported.
@@ -171,6 +192,8 @@ def deprecated_redirect(
         look out for).
     """
 
-    sys.modules[old_import] = LegacyModuleRedirect(
-        old_import, new_import, extra_reason=extra_reason
-    )
+    assert not hasattr(sys.modules[package], old_import), f"Failed to create redirection {old_import}->{new_import} for package {package}, because it was already set to {sys.modules[old_import]}"
+
+    setattr(sys.modules[package], old_import, DeprecatedModuleRedirect(
+        old_import, new_import, package, extra_reason=extra_reason
+    ))

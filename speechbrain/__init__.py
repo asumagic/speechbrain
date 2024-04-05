@@ -25,12 +25,13 @@ def make_deprecated_redirections():
     )
 
     deprecated_redirect(
-        "speechbrain.pretrained",
-        "speechbrain.inference",
+        "pretrained",
+        "inference",
+        package=__name__,
         extra_reason=sb1_0_redirect_str,
     )
 
 
 make_deprecated_redirections()
 
-__getattr__ = lazy_export_all(__file__, __name__, export_subpackages=True)
+lazy_export_all(__file__, __name__, export_subpackages=True)

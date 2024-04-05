@@ -6,4 +6,4 @@ The classes here may leverage the extended YAML syntax.
 
 from speechbrain.utils.importutils import lazy_export_all
 
-__getattr__ = lazy_export_all(__file__, __name__, export_subpackages=True)
+lazy_export_all(__file__, __name__, export_subpackages=True)
