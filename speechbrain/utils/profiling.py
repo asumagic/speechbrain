@@ -4,8 +4,13 @@ Author:
     * Titouan Parcollet 2024
 """
 
-from torch import profiler
+import torch
 import os
+
+
+def default_trace_handler(prof, logdir):
+    prof.export_stacks(os.path.join(logdir, "cpu_stacks.txt"), metric="self_cpu_time_total")
+    prof.export_stacks(os.path.join(logdir, "test_stacks.txt"), metric="self_cuda_time_total")
 
 
 def prepare_profiler(
@@ -29,11 +34,16 @@ def prepare_profiler(
     """
     logdir = os.path.join(logdir, "profiler_logs")
 
-    return profiler.profile(
-        schedule=profiler.schedule(
+    return torch.profiler.profile(
+        schedule=torch.profiler.schedule(
             wait=0, warmup=profile_warmup, active=profile_steps, repeat=1
         ),
-        on_trace_ready=profiler.tensorboard_trace_handler(logdir),
-        record_shapes=True,
+        on_trace_ready=lambda prof: default_trace_handler(prof, logdir),
+        # record_shapes=True,
         with_stack=True,
+        activities=[
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA
+        ],
+        experimental_config=torch._C._profiler._ExperimentalConfig(verbose=True)
     )
