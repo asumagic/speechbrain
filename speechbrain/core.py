@@ -40,7 +40,7 @@ from speechbrain.dataio.dataloader import LoopedLoader
 from speechbrain.dataio.dataloader import SaveableDataLoader
 from speechbrain.dataio.sampler import DistributedSamplerWrapper
 from speechbrain.dataio.sampler import ReproducibleRandomSampler
-from speechbrain.utils.profiling import prepare_profiler
+from speechbrain.utils.profiling import prepare_profiler, profiled_iterable
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -1390,7 +1390,7 @@ class Brain:
         last_ckpt_time = time.time()
         steps_since_ckpt = 0
         with tqdm(
-            train_set,
+            profiled_iterable(train_set),
             initial=self.step,
             dynamic_ncols=True,
             disable=not enable,
