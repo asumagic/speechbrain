@@ -11,6 +11,7 @@ import time
 
 class ProfiledIterable:
     def __init__(self, iterable, warn_threshold: float = 0.1, for_steps: int = 5):
+        self.iterable = iterable
         self.iterator = iter(iterable)
         self.warn_threshold = warn_threshold
         self.for_steps = for_steps
@@ -40,7 +41,7 @@ class ProfiledIterable:
         return element
 
     def __len__(self):
-        return len(iterable)
+        return len(self.iterable)
 
 
 def profiled_iterable(iterable, warn_threshold = 0.1):
