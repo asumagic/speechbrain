@@ -1205,7 +1205,7 @@ class Brain:
             scaled_loss = self.scaler.scale(
                 loss / self.grad_accumulation_factor
             )
-            # self.check_loss_isfinite(scaled_loss)
+            self.check_loss_isfinite(scaled_loss)
             scaled_loss.backward()
 
         if should_step:

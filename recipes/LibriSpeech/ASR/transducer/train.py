@@ -47,8 +47,10 @@ logger = logging.getLogger(__name__)
 
 # Define training procedure
 
-torch.cuda.set_per_process_memory_fraction(0.8)
+# default is True on ROCm but this is terrible for perf when the shape keeps
+# changing
 torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.allow_tf32 = True
 
 class ASR(sb.Brain):
     def compute_forward(self, batch, stage):
@@ -212,9 +214,9 @@ class ASR(sb.Brain):
         return loss
 
     def on_fit_batch_end(self, batch, outputs, loss, should_step):
-        """At the end of the optimizer step, apply noam annealing."""
+        """At the end of the optimizer step, apply annealing."""
         if should_step:
-            self.hparams.noam_annealing(self.optimizer)
+            self.hparams.cosine_annealing(self.optimizer)
 
     def on_stage_start(self, stage, epoch):
         """Gets called at the beginning of each epoch"""
@@ -234,7 +236,7 @@ class ASR(sb.Brain):
 
         # Perform end-of-iteration things, like annealing, logging, etc.
         if stage == sb.Stage.VALID:
-            lr = self.hparams.noam_annealing.current_lr
+            lr = self.hparams.cosine_annealing.current_lr
             steps = self.optimizer_step
             optimizer = self.optimizer.__class__.__name__
 
@@ -494,7 +496,7 @@ if __name__ == "__main__":
         train_dataloader_opts = {
             "batch_sampler": train_bsampler,
             "num_workers": hparams["num_workers"],
-            "prefetch_factor": 16,
+            "prefetch_factor": 4,
             "persistent_workers": True,
             "pin_memory": True,
         }

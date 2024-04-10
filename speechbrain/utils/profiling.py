@@ -36,8 +36,7 @@ class ProfiledIterable:
 
         if time_last_steps > self.warn_threshold:
             print(f"!!! Data loading slow: took {time_last_steps}s total for the past {self.for_steps} iterations; consider increasing workers or verifying IO bottlenecking issues")
-        else:
-            print(f"    ok {end_time - start_time}")
+            self.last_times = []
 
         return element
 
