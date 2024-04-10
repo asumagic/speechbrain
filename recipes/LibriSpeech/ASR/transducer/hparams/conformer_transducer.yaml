@@ -218,7 +218,7 @@ fea_augment: !new:speechbrain.augment.augmenter.Augmenter
 ############################## Models ##########################################
 
 CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
-   input_shape: (8, 10, 80, 1)
+   input_shape: (8, 10, 80)
    num_blocks: 3
    num_layers_per_block: 1
    out_channels: (8, 64, 128)
