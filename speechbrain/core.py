@@ -42,7 +42,7 @@ from speechbrain.dataio.sampler import (
     ReproducibleRandomSampler,
 )
 from speechbrain.utils.optimizers import rm_vector_weight_decay
-from speechbrain.utils.profiling import prepare_profiler
+from speechbrain.utils.profiling import prepare_profiler, ProfiledIterable
 
 logger = logging.getLogger(__name__)
 DEFAULT_LOG_CONFIG = os.path.dirname(os.path.abspath(__file__))
@@ -1391,7 +1391,7 @@ class Brain:
         last_ckpt_time = time.time()
         steps_since_ckpt = 0
         with tqdm(
-            train_set,
+            ProfiledIterable(train_set),
             initial=self.step,
             dynamic_ncols=True,
             disable=not enable,
