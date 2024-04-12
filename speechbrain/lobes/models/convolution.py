@@ -309,7 +309,7 @@ class ConvBlock(torch.nn.Module):
     def forward(self, x):
         """Processes the input tensor x and returns an output tensor."""
         out = self.convs(x)
-        if self.reduce_conv:
+        if self.reduce_conv is not None:
             out = out + self.reduce_conv(x)
             out = self.drop(out)
         return out

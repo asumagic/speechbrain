@@ -9,7 +9,7 @@ Authors
 
 import logging
 import math
-from typing import Optional
+from typing import Optional, Union, Tuple
 
 import numpy as np
 import torch
@@ -505,8 +505,8 @@ class RelPosMHAXL(nn.Module):
         pos_embs,
         key_padding_mask=None,
         attn_mask=None,
-        return_attn_weights=True,
-    ):
+        return_attn_weights: bool = True,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """Compute attention.
 
         Arguments

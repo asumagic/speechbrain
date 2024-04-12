@@ -1212,7 +1212,7 @@ class Brain:
             self.optimizers_step()
 
         self.on_fit_batch_end(batch, outputs, loss, should_step)
-        return loss.detach()
+        return loss.detach().cpu()
 
     def check_loss_isfinite(self, loss):
         """Check if the loss is finite.
@@ -1406,11 +1406,10 @@ class Brain:
                 self.step += 1
                 steps_since_ckpt += 1
                 loss = self.fit_batch(batch)
-                if i % 50 == 0:
-                    self.avg_train_loss = self.update_average(
-                        loss, self.avg_train_loss
-                    )
-                    t.set_postfix(train_loss=self.avg_train_loss)
+                self.avg_train_loss = self.update_average(
+                    loss, self.avg_train_loss
+                )
+                t.set_postfix(train_loss=self.avg_train_loss)
 
                 if self.profiler is not None:
                     self.profiler.step()

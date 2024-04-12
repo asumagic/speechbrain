@@ -44,27 +44,8 @@ class ProfiledIterable:
         return len(self.iterable)
 
 
-def profiled_iterable(iterable, warn_threshold = 0.1):
-    iterator = iter(iterable)
-
-    while True:
-        try:
-            start_time = time.time()
-            element = next(iterator)
-            end_time = time.time()
-
-            yield element
-
-            time_diff = end_time - start_time
-            if time_diff > warn_threshold:
-                print("!", time_diff)
-            else:
-                print(" ", time_diff)
-        except StopIteration:
-            return
-
-
 def default_trace_handler(prof, logdir):
+    prof.export_chrome_trace(os.path.join(logdir, "trace.json"))
     prof.export_stacks(os.path.join(logdir, "cpu_stacks.txt"), metric="self_cpu_time_total")
     prof.export_stacks(os.path.join(logdir, "gpu_stacks.txt"), metric="self_cuda_time_total")
 

@@ -294,6 +294,7 @@ class ConvolutionModule(nn.Module):
                 dilation=self.conv.dilation,
                 groups=self.conv.groups,
             )
+            out = out.squeeze(1)
 
             # -> [batch_size * num_chunks, chunk_size, out_channels]
             out = out.transpose(1, 2)
@@ -469,7 +470,8 @@ class ConformerEncoderLayer(nn.Module):
         x = x + 0.5 * self.ffn_module1(x)
         # multi-head attention module
         skip = x
-        x = self.norm1(x)
+        amp_dtype = skip.dtype
+        x = self.norm1(x).to(amp_dtype)
 
         batch_size = x.size(0)
 
@@ -537,6 +539,8 @@ class ConformerEncoderLayer(nn.Module):
                 pos_embs=pos_embs,
             )
 
+            x = x.to(amp_dtype)
+
             # -> [batch, chunks, lc+chunk_size, hidden]
             x = x.unflatten(dim=0, sizes=(batch_size, -1))
 
@@ -567,7 +571,7 @@ class ConformerEncoderLayer(nn.Module):
             x, conv_mask, dynchunktrain_config=dynchunktrain_config
         )
         # ffn module
-        x = self.norm2(x + 0.5 * self.ffn_module2(x))
+        x = self.norm2(x + 0.5 * self.ffn_module2(x)).to(amp_dtype)
         return x, self_attn
 
     def forward_streaming(
