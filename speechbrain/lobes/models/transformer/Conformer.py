@@ -440,7 +440,7 @@ class ConformerEncoderLayer(nn.Module):
 
     def forward(
         self,
-        x,
+        x: torch.Tensor,
         src_mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: torch.Tensor = None,
@@ -471,14 +471,97 @@ class ConformerEncoderLayer(nn.Module):
         skip = x
         x = self.norm1(x)
 
-        x, self_attn = self.mha_layer(
-            x,
-            x,
-            x,
-            attn_mask=src_mask,
-            key_padding_mask=src_key_padding_mask,
-            pos_embs=pos_embs,
+        batch_size = x.size(0)
+
+        # HACK: src_mask might not be valid, we're just assuming this here...
+        chunkwise_sparse_attention = (
+            (src_mask is not None)
+            and not dynchunktrain_config.is_infinite_left_context()
+            and x.size(1) > dynchunktrain_config.chunk_size + dynchunktrain_config.left_context_size
         )
+
+        if chunkwise_sparse_attention:
+            # fast path for block-sparse attention (TODO: check if that's the correct term really)
+
+            # build up chunks of attention in a new dim
+            # where N is the chunk_size + left_context_size
+
+            # x [B, L, Hidden] -> [B, N, chunk_size, hidden]
+            # attn_mask [L, L] -> [N, N]
+            # src_key_padding_mask [B, L] -> [B, N, chunk_size]
+
+            start_shape = x.shape
+
+            # we add left context for the unfold trick to work
+
+            # determine the amount of padding we need to insert at the right of
+            # the last chunk so that all chunks end up with the same size.
+            if x.shape[1] % dynchunktrain_config.chunk_size != 0:
+                final_right_padding = dynchunktrain_config.chunk_size - (x.shape[1] % dynchunktrain_config.chunk_size)
+            else:
+                final_right_padding = 0
+
+            # x: [batch, len, hidden]
+            # -> [batch, lc+len+rpad, hidden]
+            x = F.pad(x, (0, 0, dynchunktrain_config.left_context_size, final_right_padding), value=0.0)
+            # -> [batch, chunks, lc+chunk_size, hidden]
+            x = x.unfold(1, dynchunktrain_config.chunk_size + dynchunktrain_config.left_context_size, dynchunktrain_config.chunk_size)
+            x = x.transpose(-1, -2)
+            # -> [batch*chunks, lc+chunk_size, hidden]
+            x = x.flatten(start_dim=0, end_dim=1)
+
+            # the src_key_padding_mask takes care of masking the lc in the input
+            # src_key_padding_mask: [batch, len]
+            # -> [batch, lc+len+rpad]
+            src_key_padding_mask = F.pad(src_key_padding_mask, (dynchunktrain_config.left_context_size, final_right_padding), value=True)
+            # -> [batch, chunks, lc+chunk_size]
+            src_key_padding_mask = src_key_padding_mask.unfold(1, dynchunktrain_config.chunk_size + dynchunktrain_config.left_context_size, dynchunktrain_config.chunk_size)
+            # -> [batch*chunks, lc+chunk_size]
+            src_key_padding_mask = src_key_padding_mask.flatten(start_dim=0, end_dim=1)
+
+            # pos_embs: [2*len-1, hidden]
+            # i.e. [past_embs + cur_emb + future_emb]
+            # -> [2*(lc+chunk_size)-1, hidden]
+            pos_embs_mid_idx = (pos_embs.size(1) + 1) // 2
+            total_chunk_size = dynchunktrain_config.chunk_size + dynchunktrain_config.left_context_size
+            pos_embs = pos_embs[:, pos_embs_mid_idx - total_chunk_size : pos_embs_mid_idx + total_chunk_size - 1]
+
+            # print(f"pre mha: x={x.shape}, key_padding_mask={src_key_padding_mask.shape}, pos_embs={pos_embs.shape}")
+
+            # x -> same shape, i.e. [batch*chunks, lc+chunk_size, hidden]
+            x, self_attn = self.mha_layer(
+                x,
+                x,
+                x,
+                attn_mask=None,
+                key_padding_mask=src_key_padding_mask,
+                pos_embs=pos_embs,
+            )
+
+            # -> [batch, chunks, lc+chunk_size, hidden]
+            x = x.unflatten(dim=0, sizes=(batch_size, -1))
+
+            # -> [batch, chunks, chunk_size, hidden]
+            x = x[:, :, dynchunktrain_config.left_context_size:, :]
+
+            # -> [batch, len+rpad, hidden]
+            x = x.flatten(start_dim=1, end_dim=2)
+
+            if final_right_padding > 0:
+                # -> [batch, len, hidden]
+                x = x[:, :-final_right_padding, :]
+
+            assert x.shape == start_shape
+        else:
+            x, self_attn = self.mha_layer(
+                x,
+                x,
+                x,
+                attn_mask=src_mask,
+                key_padding_mask=src_key_padding_mask,
+                pos_embs=pos_embs,
+            )
+
         x = x + skip
         # convolution module
         x = x + self.convolution_module(

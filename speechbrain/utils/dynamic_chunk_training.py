@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import torch
+import math
 
 import speechbrain as sb
 
@@ -115,6 +116,13 @@ class DynChunkTrainConfigRandomSampler:
     """When sampling a random left context size, the maximum number of left
     context chunks that can be picked."""
 
+    left_context_frames_soft_limit: Optional[int] = None
+    """When sampling a random left context size, limit the picked left context
+    size to the smallest number of chunks that can fit this frame count. This
+    can be helpful to reduce memory usage when using chunkwise sparse attention,
+    so that large chunk sizes have a smaller maximal left context.
+    """
+
     test_config: Optional[DynChunkTrainConfig] = None
     """The configuration that should be used for `Stage.TEST`.
     When `None`, evaluation is done with full context (i.e. non-streaming)."""
@@ -168,9 +176,19 @@ class DynChunkTrainConfigRandomSampler:
                 ).item()
 
                 if self._sample_bool(self.limited_left_context_prob):
+                    if self.left_context_frames_soft_limit is not None:
+                        largest_lc = min(
+                            math.ceil(self.left_context_frames_soft_limit / chunk_size),
+                            self.left_context_chunks_max
+                        )
+                        # if the soft limit is too low, don't error out
+                        largest_lc = max(largest_lc, self.left_context_chunks_min)
+                    else:
+                        largest_lc = self.left_context_chunks_max
+
                     left_context_chunks = torch.randint(
                         self.left_context_chunks_min,
-                        self.left_context_chunks_max + 1,
+                        largest_lc + 1,
                         (1,),
                     ).item()
                 else:

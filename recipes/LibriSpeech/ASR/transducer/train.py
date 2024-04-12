@@ -505,13 +505,15 @@ if __name__ == "__main__":
         valid_dataloader_opts = {"batch_sampler": valid_bsampler}
 
     # Training
-    asr_brain.fit(
-        asr_brain.hparams.epoch_counter,
-        train_data,
-        valid_data,
-        train_loader_kwargs=train_dataloader_opts,
-        valid_loader_kwargs=valid_dataloader_opts,
-    )
+    # with torch.autograd.detect_anomaly():
+    if True:
+        asr_brain.fit(
+            asr_brain.hparams.epoch_counter,
+            train_data,
+            valid_data,
+            train_loader_kwargs=train_dataloader_opts,
+            valid_loader_kwargs=valid_dataloader_opts,
+        )
 
     # Testing
     os.makedirs(hparams["output_wer_folder"], exist_ok=True)

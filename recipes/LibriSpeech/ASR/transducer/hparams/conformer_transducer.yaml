@@ -47,8 +47,8 @@ ckpt_interval_minutes: 5 # save checkpoint every N min
 # Empirically, we found that this value should be >= 128.
 # Please, set your parameters accordingly.
 number_of_epochs: 100
-warmup_steps: 25000
-num_workers: 4
+warmup_steps: 15000
+num_workers: 12
 batch_size_valid: 4
 lr: 0.005
 weight_decay: 0.01
@@ -62,7 +62,7 @@ precision: fp32 # bf16, fp16 or fp32
 # The batch size is used if and only if dynamic batching is set to False
 # Validation and testing are done with fixed batches and not dynamic batching.
 batch_size: 8
-grad_accumulation_factor: 1
+grad_accumulation_factor: 4
 sorting: random
 avg_checkpoints: 10 # Number of checkpoints to average for evaluation
 
@@ -81,12 +81,13 @@ streaming: True  # controls all Dynamic Chunk Training & chunk size & left conte
 # Configuration for Dynamic Chunk Training.
 # In this model, a chunk is roughly equivalent to 40ms of audio.
 dynchunktrain_config_sampler: !new:speechbrain.utils.dynamic_chunk_training.DynChunkTrainConfigRandomSampler # yamllint disable-line rule:line-length
-   chunkwise_prob: 0.8 # Probability during a batch to limit attention and sample a random chunk size in the following range
-   chunk_size_min: 1 # Minimum chunk size (if in a DynChunkTrain batch)
-   chunk_size_max: 16 # Maximum chunk size (if in a DynChunkTrain batch)
+   chunkwise_prob: 1.0 # Probability during a batch to limit attention and sample a random chunk size in the following range
+   chunk_size_min: 3 # Minimum chunk size (if in a DynChunkTrain batch)
+   chunk_size_max: 12 # Maximum chunk size (if in a DynChunkTrain batch)
    limited_left_context_prob: 1.0 # If in a DynChunkTrain batch, the probability during a batch to restrict left context to a random number of chunks
    left_context_chunks_min: 1 # Minimum left context size (in # of chunks)
-   left_context_chunks_max: 16 # Maximum left context size (in # of chunks)
+   left_context_chunks_max: 8 # Maximum left context size (in # of chunks)
+   left_context_frames_soft_limit: 32 # Lowers left context size for big chunks
    # If you specify a valid/test config, you can optionally have evaluation be
    # done with a specific DynChunkTrain configuration.
    # valid_config: !new:speechbrain.utils.dynamic_chunk_training.DynChunkTrainConfig
@@ -110,8 +111,8 @@ test_dataloader_opts:
 # Adjust grad_accumulation_factor depending on the DDP node count (here 3)
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 300
-max_batch_len_val: 200
+max_batch_len: 50
+max_batch_len_val: 40
 num_bucket: 200
 
 dynamic_batch_sampler:
@@ -160,6 +161,7 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 normalize: !new:speechbrain.processing.features.InputNormalization
    norm_type: global
    update_until_epoch: 4
+   requires_grad: True
 
 compute_features: !new:speechbrain.lobes.features.Fbank
    sample_rate: !ref <sample_rate>
@@ -225,7 +227,6 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    kernel_sizes: (3, 3, 3)
    strides: (2, 2, 2)
    residuals: (False, False, False)
-   conv_init: kaiming
    conv_modules:
       - !name:speechbrain.nnet.CNN.Conv2d
       - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
