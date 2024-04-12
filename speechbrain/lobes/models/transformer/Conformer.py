@@ -522,11 +522,10 @@ class ConformerEncoderLayer(nn.Module):
             # pos_embs: [2*len-1, hidden]
             # i.e. [past_embs + cur_emb + future_emb]
             # -> [2*(lc+chunk_size)-1, hidden]
-            pos_embs_mid_idx = (pos_embs.size(1) + 1) // 2
+            past_or_future_count = (pos_embs.size(1) - 1) // 2
+            pos_embs_mid_idx = past_or_future_count
             total_chunk_size = dynchunktrain_config.chunk_size + dynchunktrain_config.left_context_size
-            pos_embs = pos_embs[:, pos_embs_mid_idx - total_chunk_size : pos_embs_mid_idx + total_chunk_size - 1]
-
-            # print(f"pre mha: x={x.shape}, key_padding_mask={src_key_padding_mask.shape}, pos_embs={pos_embs.shape}")
+            pos_embs = pos_embs[:, pos_embs_mid_idx - total_chunk_size + 1 : pos_embs_mid_idx + total_chunk_size]
 
             # x -> same shape, i.e. [batch*chunks, lc+chunk_size, hidden]
             x, self_attn = self.mha_layer(
