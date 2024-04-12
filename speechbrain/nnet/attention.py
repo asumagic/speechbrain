@@ -506,6 +506,7 @@ class RelPosMHAXL(nn.Module):
         key_padding_mask=None,
         attn_mask=None,
         return_attn_weights: bool = True,
+        trunc_query_from: int = 0,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """Compute attention.
 
@@ -556,8 +557,6 @@ class RelPosMHAXL(nn.Module):
 
         # query, key and value are of shape batch, time, embed_dim
         bsz = query.shape[0]
-        klen = key.shape[1]
-        qlen = query.shape[1]
 
         if self._qkv_same_embed_dim:
             # self-attention
@@ -600,6 +599,11 @@ class RelPosMHAXL(nn.Module):
             1, -1, self.num_heads, self.head_dim
         )
         # (batch, head, klen, d_k)
+
+        query = query[:, trunc_query_from:, :]
+
+        klen = key.shape[1]
+        qlen = query.shape[1]
 
         q_with_bias_u = (
             query + self.pos_bias_u.view(1, 1, self.num_heads, self.head_dim)
