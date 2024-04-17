@@ -471,7 +471,7 @@ class ConformerEncoderLayer(nn.Module):
         # multi-head attention module
         skip = x
         amp_dtype = skip.dtype
-        x = self.norm1(x).to(amp_dtype)
+        x = self.norm1(x)
 
         batch_size = x.size(0)
 
@@ -572,7 +572,9 @@ class ConformerEncoderLayer(nn.Module):
             x, conv_mask, dynchunktrain_config=dynchunktrain_config
         )
         # ffn module
-        x = self.norm2(x + 0.5 * self.ffn_module2(x)).to(amp_dtype)
+        x = self.norm2(x + 0.5 * self.ffn_module2(x))
+
+        # print("min", x.min().item(), "max", x.max().item(), "nan", x.isnan().sum().item(), "mean", x.mean().item(), "std", x.std().item())
         return x, self_attn
 
     def forward_streaming(
@@ -757,7 +759,7 @@ class ConformerEncoder(nn.Module):
                 for i in range(num_layers)
             ]
         )
-        self.norm = LayerNorm(d_model, eps=1e-6)
+        self.norm = LayerNorm(d_model, eps=1e-6, elementwise_affine=False)
         self.attention_type = attention_type
 
     def forward(
@@ -794,6 +796,7 @@ class ConformerEncoder(nn.Module):
 
         output = src
         attention_lst = []
+        # print("ConformerEncoder")
         for enc_layer in self.layers:
             output, attention = enc_layer(
                 output,

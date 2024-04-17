@@ -48,9 +48,9 @@ ckpt_interval_minutes: 5 # save checkpoint every N min
 # Please, set your parameters accordingly.
 number_of_epochs: 100
 warmup_steps: 15000
-num_workers: 12
+num_workers: 17
 batch_size_valid: 4
-lr: 0.005
+lr: 0.01
 weight_decay: 0.01
 number_of_ctc_epochs: 60
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
@@ -62,9 +62,9 @@ precision: fp32 # bf16, fp16 or fp32
 # The batch size is used if and only if dynamic batching is set to False
 # Validation and testing are done with fixed batches and not dynamic batching.
 batch_size: 8
-grad_accumulation_factor: 4
+grad_accumulation_factor: 1
 sorting: random
-avg_checkpoints: 10 # Number of checkpoints to average for evaluation
+avg_checkpoints: 5 # Number of checkpoints to average for evaluation
 
 # Feature parameters
 sample_rate: 16000
@@ -111,8 +111,8 @@ test_dataloader_opts:
 # Adjust grad_accumulation_factor depending on the DDP node count (here 3)
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 600
-max_batch_len_val: 200
+max_batch_len: 500
+max_batch_len_val: 50
 num_bucket: 200
 
 dynamic_batch_sampler:
@@ -374,15 +374,12 @@ Beamsearcher: !new:speechbrain.decoders.transducer.TransducerBeamSearcher
    state_beam: !ref <state_beam>
    expand_beam: !ref <expand_beam>
 
-opt_class: !name:torch.optim.AdamW
+opt_class: !name:schedulefree.AdamWScheduleFree
    lr: !ref <lr>
    betas: (0.9, 0.98)
    eps: 1.e-8
    weight_decay: !ref <weight_decay>
-
-cosine_annealing: !new:speechbrain.nnet.schedulers.CyclicCosineScheduler
-   n_warmup_steps: !ref <warmup_steps>
-   lr_initial: !ref <lr>
+   warmup_steps: !ref <warmup_steps>
 
 ############################## Logging and Pretrainer ##########################
 
@@ -390,7 +387,7 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
    checkpoints_dir: !ref <save_folder>
    recoverables:
       model: !ref <model>
-      scheduler: !ref <cosine_annealing>
+      # scheduler: !ref <cosine_annealing>
       normalizer: !ref <normalize>
       counter: !ref <epoch_counter>
 
