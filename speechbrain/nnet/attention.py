@@ -835,6 +835,111 @@ class MultiheadAttention(nn.Module):
         return output
 
 
+def grouped_linear(input, weight, bias: Optional[torch.Tensor] = None, groups: int =1):
+    flattened = input.size()[:-1]
+    
+    input = input.flatten(end_dim=-2)
+
+    N = input.size(0)
+    
+    # Divide channels into groups and swap groups with batch dimension
+    input = input.view(N, groups, -1).transpose(1, 0)
+
+    # Swap groups axis with batch dimension and remove
+    output = torch.matmul(input, weight)
+
+    output = output.transpose(1, 0).reshape(N, -1)
+
+    if bias is not None:
+        output += bias
+
+    output = output.unflatten(dim=0, sizes=flattened)
+
+    return output
+
+class GroupedLinear(nn.Module):
+    def __init__(self, in_features, out_features, groups=1, bias=True):
+        super().__init__()
+        assert (
+            in_features % groups == 0
+        ), "Number of input features must be divisible by groups."
+
+        assert (
+            out_features % groups == 0
+        ), "Number of output features must be divisible by groups."
+
+        self.in_features = in_features
+        self.out_features = out_features
+        self.groups = groups
+
+        self.weight = nn.Parameter(
+            torch.Tensor(groups, in_features // groups, out_features // groups)
+        )
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(out_features))
+        else:
+            self.register_parameter("bias", None)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in)
+            nn.init.uniform_(self.bias, -bound, bound)
+
+    def forward(self, input):
+        return grouped_linear(input, self.weight, self.bias, self.groups)
+
+
+class CausalPooling(nn.Module):
+    def __init__(self, feat_size: int, final_size: int, dim: int = -2, hist_size: int = 64):
+        super().__init__()
+        self.feat_size = feat_size
+        self.dim = dim
+        self.hist_size = hist_size
+
+        self.padding_tokens = nn.Parameter(
+            data=torch.normal(
+                mean=0.0,
+                std=1.0,
+                size=(self.hist_size - 1, feat_size,)
+            )
+        )
+
+        self.merge_ffn = nn.Linear(feat_size * 2, final_size)
+
+    def forward(self, x: torch.Tensor):
+        sum = x
+
+        # implements an averaging depthwise sliding window with learnable left
+        # context initialization
+
+        # equivalent to prepending with the cumsum of padding tokens
+        # note that padding_tokens is used in a flipped way here (i.e. the last
+        # values in the tensor at the rightmost), but it doesn't matter
+        sum[:, 0] = sum[:, 0] + self.padding_tokens.sum(dim=-2)
+        # by the hist_size-th entry, have all left context cancelled out
+        sum[:, 1:self.hist_size] = sum[:, 1:self.hist_size] - self.padding_tokens[:x.size(1)-1]
+
+        # accumulate real values along the hidden dim
+        sum = torch.cumsum(sum, dim=self.dim, dtype=torch.float32)
+
+        # normalize by hist size
+        sum = sum / self.hist_size
+
+        # approximate removal of history past self.hist_size frames in the past
+        # (approximate because this is floating-point, not exact arithmetic)
+        # works because we're after the cumsum, so e.g. sum[20]-sum[10] is only
+        # the sum between 10 and 20
+        sum[self.hist_size:] = sum[self.hist_size:] - sum[:-self.hist_size]
+
+        joined = self.merge_ffn(torch.cat((x, sum), dim=-1))
+
+        return joined
+
+
 class PositionalwiseFeedForward(nn.Module):
     """The class implements the positional-wise feed forward module in
     “Attention Is All You Need”.
@@ -868,6 +973,9 @@ class PositionalwiseFeedForward(nn.Module):
         input_size=None,
         dropout=0.0,
         activation=nn.ReLU,
+        input_groups: int = 1,
+        output_groups: int = 1,
+        stupid_causal_pooling: bool = False,
     ):
         super().__init__()
 
@@ -877,20 +985,29 @@ class PositionalwiseFeedForward(nn.Module):
         if input_size is None:
             input_size = input_shape[-1]
 
+        self.input_groups = input_groups
+        self.output_groups = output_groups
+
+        if self.input_groups != 1:
+            inputs = [GroupedLinear(input_size, d_ffn, groups=input_groups)]
+        else:
+            inputs = [nn.Linear(input_size, d_ffn)]
+
+        if stupid_causal_pooling:
+            outputs = [CausalPooling(d_ffn, input_size)]
+        elif self.output_groups != 1:
+            outputs = [GroupedLinear(d_ffn, input_size, groups=input_groups)]
+        else:
+            outputs = [nn.Linear(d_ffn, input_size)]
+
         self.ffn = nn.Sequential(
-            nn.Linear(input_size, d_ffn),
+            *inputs,
             activation(),
             nn.Dropout(dropout),
-            nn.Linear(d_ffn, input_size),
+            *outputs
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         """Applies PositionalwiseFeedForward to the input tensor x."""
-        # give a tensor of shape (time, batch, fea)
-        x = x.permute(1, 0, 2)
         x = self.ffn(x)
-
-        # reshape the output back to (batch, time, fea)
-        x = x.permute(1, 0, 2)
-
         return x

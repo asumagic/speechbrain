@@ -46,13 +46,13 @@ ckpt_interval_minutes: 5 # save checkpoint every N min
 # The global batch size is computed as batch_size * n_gpus * grad_accumulation_factor.
 # Empirically, we found that this value should be >= 128.
 # Please, set your parameters accordingly.
-number_of_epochs: 100
-warmup_steps: 15000
-num_workers: 17
+number_of_epochs: 60
+warmup_steps: 25000
+num_workers: 8
 batch_size_valid: 4
-lr: 0.01
-weight_decay: 0.01
-number_of_ctc_epochs: 60
+lr: 0.0008
+weight_decay: 0.001
+number_of_ctc_epochs: 45
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
 ce_weight: 0.0 # Multitask with CE for the decoder (0.0 = disabled)
 max_grad_norm: 5.0
@@ -62,9 +62,9 @@ precision: fp32 # bf16, fp16 or fp32
 # The batch size is used if and only if dynamic batching is set to False
 # Validation and testing are done with fixed batches and not dynamic batching.
 batch_size: 8
-grad_accumulation_factor: 1
+grad_accumulation_factor: 4
 sorting: random
-avg_checkpoints: 5 # Number of checkpoints to average for evaluation
+avg_checkpoints: 15 # Number of checkpoints to average for evaluation
 
 # Feature parameters
 sample_rate: 16000
@@ -81,13 +81,13 @@ streaming: True  # controls all Dynamic Chunk Training & chunk size & left conte
 # Configuration for Dynamic Chunk Training.
 # In this model, a chunk is roughly equivalent to 80ms of audio.
 dynchunktrain_config_sampler: !new:speechbrain.utils.dynamic_chunk_training.DynChunkTrainConfigRandomSampler # yamllint disable-line rule:line-length
-   chunkwise_prob: 1.0 # Probability during a batch to limit attention and sample a random chunk size in the following range
-   chunk_size_min: 6 # Minimum chunk size (if in a DynChunkTrain batch)
+   chunkwise_prob: 0.6 # Probability during a batch to limit attention and sample a random chunk size in the following range
+   chunk_size_min: 4 # Minimum chunk size (if in a DynChunkTrain batch)
    chunk_size_max: 32 # Maximum chunk size (if in a DynChunkTrain batch)
-   limited_left_context_prob: 1.0 # If in a DynChunkTrain batch, the probability during a batch to restrict left context to a random number of chunks
-   left_context_chunks_min: 1 # Minimum left context size (in # of chunks). Low number reduces perf of chunkwise-sparse
+   limited_left_context_prob: 0.8 # If in a DynChunkTrain batch, the probability during a batch to restrict left context to a random number of chunks
+   left_context_chunks_min: 1 # Minimum left context size (in # of chunks)
    left_context_chunks_max: 64 # Maximum left context size (in # of chunks)
-   left_context_frames_soft_limit: 64 # Lowers left context size for big chunks
+   # left_context_frames_soft_limit: 64 # Lowers left context size for big chunks
    # If you specify a valid/test config, you can optionally have evaluation be
    # done with a specific DynChunkTrain configuration.
    # valid_config: !new:speechbrain.utils.dynamic_chunk_training.DynChunkTrainConfig
@@ -153,7 +153,7 @@ expand_beam: 2.3
 # lm_weight: 0.50
 
 # If True uses torchaudio loss. Otherwise, the numba one
-use_torchaudio: False
+use_torchaudio: True
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
    limit: !ref <number_of_epochs>
@@ -374,12 +374,22 @@ Beamsearcher: !new:speechbrain.decoders.transducer.TransducerBeamSearcher
    state_beam: !ref <state_beam>
    expand_beam: !ref <expand_beam>
 
+# opt_class: !name:torch.optim.AdamW
+#    lr: !ref <lr>
+#    betas: (0.9, 0.98)
+#    eps: 1.e-8
+#    weight_decay: !ref <weight_decay>
+
 opt_class: !name:schedulefree.AdamWScheduleFree
    lr: !ref <lr>
    betas: (0.9, 0.98)
    eps: 1.e-8
    weight_decay: !ref <weight_decay>
-   warmup_steps: !ref <warmup_steps>
+
+# noam_annealing: !new:speechbrain.nnet.schedulers.NoamScheduler
+#     lr_initial: !ref <lr>
+#     n_warmup_steps: !ref <warmup_steps>
+#     model_size: !ref <d_model>
 
 ############################## Logging and Pretrainer ##########################
 
@@ -387,7 +397,7 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
    checkpoints_dir: !ref <save_folder>
    recoverables:
       model: !ref <model>
-      # scheduler: !ref <cosine_annealing>
+      # scheduler: !ref <noam_annealing>
       normalizer: !ref <normalize>
       counter: !ref <epoch_counter>
 

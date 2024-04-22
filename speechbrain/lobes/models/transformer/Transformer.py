@@ -129,7 +129,7 @@ class TransformerInterface(nn.Module):
         self.decoder_kdim = decoder_kdim
         self.decoder_vdim = decoder_vdim
 
-        assert attention_type in ["regularMHA", "RelPosMHAXL", "hypermixing"]
+        assert attention_type in ["regularMHA", "RelPosMHAXL", "hypermixing", "CausalPooling"]
         assert positional_encoding in ["fixed_abs_sine", None]
 
         assert (

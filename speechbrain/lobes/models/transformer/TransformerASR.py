@@ -339,6 +339,8 @@ class TransformerASR(TransformerInterface):
         elif self.positional_encoding_type == "fixed_abs_sine":
             src = src + self.positional_encoding(src)  # add the encodings here
             pos_embs_encoder = None
+        elif self.attention_type == "CausalPooling":
+            pos_embs_encoder = None
 
         encoder_out, _ = self.encoder(
             src=src,
@@ -471,6 +473,8 @@ class TransformerASR(TransformerInterface):
         elif self.positional_encoding_type == "fixed_abs_sine":
             src = src + self.positional_encoding(src)
             pos_embs_source = None
+        elif self.attention_type == "CausalPooling":
+            pos_embs_source = None
 
         encoder_out, _ = self.encoder(
             src=src,
@@ -568,6 +572,8 @@ class TransformerASR(TransformerInterface):
 
         elif self.positional_encoding_type == "fixed_abs_sine":
             src = src + self.positional_encoding(pos_encoding_dummy)
+            pos_embs_source = None
+        elif self.attention_type == "CausalPooling":
             pos_embs_source = None
 
         encoder_out, _ = self.encoder.forward_streaming(

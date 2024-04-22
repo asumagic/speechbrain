@@ -20,6 +20,7 @@ from speechbrain.nnet.activations import Swish
 from speechbrain.nnet.attention import (
     MultiheadAttention,
     PositionalwiseFeedForward,
+    CausalPooling,
     RelPosMHAXL,
 )
 from speechbrain.nnet.hypermixing import HyperMixing
@@ -124,10 +125,8 @@ class ConvolutionModule(nn.Module):
         self.layer_norm = nn.LayerNorm(input_size)
         self.bottleneck = nn.Sequential(
             # pointwise
-            nn.Conv1d(
-                input_size, 2 * input_size, kernel_size=1, stride=1, bias=bias
-            ),
-            nn.GLU(dim=1),
+            nn.Linear(input_size, 2 * input_size),
+            nn.GLU(dim=2),
         )
         # depthwise
         self.conv = nn.Conv1d(
@@ -218,11 +217,11 @@ class ConvolutionModule(nn.Module):
             # -> [batch_size, t, in_channels]
             out = self.layer_norm(x)
 
+            # -> [batch_size, t, in_channels] (pointwise)
+            out = self.bottleneck(out)
+
             # -> [batch_size, in_channels, t] for the CNN
             out = out.transpose(1, 2)
-
-            # -> [batch_size, in_channels, t] (pointwise)
-            out = self.bottleneck(out)
 
             # -> [batch_size, in_channels, lc+t+final_right_padding]
             out = F.pad(out, (self.padding, final_right_padding), value=0)
@@ -294,7 +293,6 @@ class ConvolutionModule(nn.Module):
                 dilation=self.conv.dilation,
                 groups=self.conv.groups,
             )
-            out = out.squeeze(1)
 
             # -> [batch_size * num_chunks, chunk_size, out_channels]
             out = out.transpose(1, 2)
@@ -312,8 +310,8 @@ class ConvolutionModule(nn.Module):
                 out = out[:, :-final_right_padding, :]
         else:
             out = self.layer_norm(x)
-            out = out.transpose(1, 2)
             out = self.bottleneck(out)
+            out = out.transpose(1, 2)
             out = self.conv(out)
 
             if self.causal:
@@ -384,6 +382,8 @@ class ConformerEncoderLayer(nn.Module):
     ):
         super().__init__()
 
+        self.attention_type = attention_type
+
         if attention_type == "regularMHA":
             self.mha_layer = MultiheadAttention(
                 nhead=nhead,
@@ -408,6 +408,8 @@ class ConformerEncoderLayer(nn.Module):
                 num_heads=nhead,
                 fix_tm_hidden_size=False,
             )
+        elif attention_type == "CausalPooling":
+            self.mha_layer = None
 
         self.convolution_module = ConvolutionModule(
             d_model, kernel_size, bias, activation, dropout, causal=causal
@@ -420,9 +422,14 @@ class ConformerEncoderLayer(nn.Module):
                 input_size=d_model,
                 dropout=dropout,
                 activation=activation,
+                input_groups=1,
+                output_groups=1,
             ),
             nn.Dropout(dropout),
         )
+        # self.ffn_module1 = torch.jit.script(self.ffn_module1)
+
+        self.test = CausalPooling(d_model, d_model)
 
         self.ffn_module2 = nn.Sequential(
             nn.LayerNorm(d_model),
@@ -431,9 +438,12 @@ class ConformerEncoderLayer(nn.Module):
                 input_size=d_model,
                 dropout=dropout,
                 activation=activation,
+                input_groups=1,
+                output_groups=1,
             ),
             nn.Dropout(dropout),
         )
+        # self.ffn_module2 = torch.jit.script(self.ffn_module2)
 
         self.norm1 = LayerNorm(d_model)
         self.norm2 = LayerNorm(d_model)
@@ -476,14 +486,19 @@ class ConformerEncoderLayer(nn.Module):
         batch_size = x.size(0)
 
         # HACK: src_mask might not be valid, we're just assuming this here...
-        chunkwise_sparse_attention = (
-            (src_mask is not None)
-            and not dynchunktrain_config.is_infinite_left_context()
-            and x.size(1) > dynchunktrain_config.chunk_size + dynchunktrain_config.left_context_size_frames()
-        )
+        # chunkwise_sparse_attention = (
+        #     (src_mask is not None)
+        #     and not dynchunktrain_config.is_infinite_left_context()
+        #     and x.size(1) > dynchunktrain_config.chunk_size + dynchunktrain_config.left_context_size_frames()
+        # )
+        chunkwise_sparse_attention = False
 
-        if chunkwise_sparse_attention:
-            # fast path for block-sparse attention (TODO: check if that's the correct term really)
+        x = self.test(x)
+
+        if self.mha_layer is None:
+            self_attn = None
+        elif chunkwise_sparse_attention:
+            # fast path for chunkwise-sparse attention
 
             # build up chunks of attention in a new dim
             # where N is the chunk_size + left_context_size
@@ -759,7 +774,7 @@ class ConformerEncoder(nn.Module):
                 for i in range(num_layers)
             ]
         )
-        self.norm = LayerNorm(d_model, eps=1e-6, elementwise_affine=False)
+        self.norm = LayerNorm(d_model, eps=1e-6)
         self.attention_type = attention_type
 
     def forward(
