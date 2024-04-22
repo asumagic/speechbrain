@@ -2,7 +2,8 @@
 """
 
 import os
-from .core import Stage, Brain, create_experiment_directory, parse_arguments
+
+from .core import Brain, Stage, create_experiment_directory, parse_arguments
 from .utils.importutils import deprecated_redirect, lazy_export_all
 
 with open(os.path.join(os.path.dirname(__file__), "version.txt")) as f:

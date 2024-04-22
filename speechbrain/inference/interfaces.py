@@ -393,6 +393,7 @@ class Pretrained(torch.nn.Module):
         revision=None,
         download_only=False,
         huggingface_cache_dir=None,
+        overrides_must_match=True,
         **kwargs,
     ):
         """Fetch and load based from outside source based on HyperPyYAML file
@@ -444,6 +445,8 @@ class Pretrained(torch.nn.Module):
             If true, class and instance creation is skipped.
         huggingface_cache_dir : str
             Path to HuggingFace cache; if None -> "~/.cache/huggingface" (default: None)
+        overrides_must_match : bool
+            Whether the overrides must match the parameters already in the file.
         **kwargs : dict
             Arguments to forward to class constructor.
 
@@ -488,19 +491,26 @@ class Pretrained(torch.nn.Module):
 
         # Load the modules:
         with open(hparams_local_path) as fin:
-            hparams = load_hyperpyyaml(fin, overrides)
+            hparams = load_hyperpyyaml(
+                fin, overrides, overrides_must_match=overrides_must_match
+            )
 
         # Pretraining:
-        pretrainer = hparams["pretrainer"]
-        pretrainer.set_collect_in(savedir)
-        # For distributed setups, have this here:
-        run_on_main(pretrainer.collect_files, kwargs={"default_source": source})
-        # Load on the CPU. Later the params can be moved elsewhere by specifying
-        if not download_only:
-            # run_opts={"device": ...}
-            pretrainer.load_collected()
+        pretrainer = hparams.get("pretrainer", None)
+        if pretrainer is not None:
+            pretrainer.set_collect_in(savedir)
+            # For distributed setups, have this here:
+            run_on_main(
+                pretrainer.collect_files, kwargs={"default_source": source}
+            )
+            # Load on the CPU. Later the params can be moved elsewhere by specifying
+            if not download_only:
+                # run_opts={"device": ...}
+                pretrainer.load_collected()
 
-            # Now return the system
+                # Now return the system
+                return cls(hparams["modules"], hparams, **kwargs)
+        else:
             return cls(hparams["modules"], hparams, **kwargs)
 
 
