@@ -121,7 +121,7 @@ dynamic_batch_sampler:
    num_buckets: !ref <num_bucket>
    shuffle_ex: True # if true re-creates batches at each epoch shuffling examples.
    batch_ordering: random
-   max_batch_ex: 99999
+   max_batch_ex: 256
 
 ####################### Model Parameters #######################################
 
@@ -187,7 +187,7 @@ wav_augment: !new:speechbrain.augment.augmenter.Augmenter
 # Time Drop
 time_drop: !new:speechbrain.augment.freq_domain.SpectrogramDrop
    drop_length_low: 2
-   drop_length_high: 25
+   drop_length_high: 20
    drop_count_low: 5
    drop_count_high: 20
    replace: "zeros"
@@ -220,40 +220,41 @@ fea_augment: !new:speechbrain.augment.augmenter.Augmenter
 ############################## Models ##########################################
 
 # fastconformer
-# CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
-#    input_shape: (8, 10, 80)
-#    num_blocks: 3
-#    num_layers_per_block: 1
-#    out_channels: (256, 256, 256)
-#    kernel_sizes: (3, 3, 3)
-#    strides: (2, 2, 2)
-#    residuals: (False, False, False)
-#    norm: null
-#    dropout: 0.0
-#    conv_modules:
-#       - !name:speechbrain.nnet.CNN.Conv2d
-#       - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
-#       - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
-
-# vanilla conformer
 CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    input_shape: (8, 10, 80)
-   num_blocks: 2
+   num_blocks: 3
    num_layers_per_block: 1
-   out_channels: (256, 256)
-   kernel_sizes: (3, 3)
-   strides: (2, 2)
-   residuals: (False, False)
+   out_channels: (256, 256, 256)
+   kernel_sizes: (3, 3, 3)
+   strides: (2, 2, 2)
+   residuals: (False, False, False)
    norm: null
    dropout: 0.0
    conv_modules:
       - !name:speechbrain.nnet.CNN.Conv2d
-      - !name:speechbrain.nnet.CNN.Conv2d
+      - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
+      - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
+
+# vanilla conformer
+# CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
+#    input_shape: (8, 10, 80)
+#    num_blocks: 2
+#    num_layers_per_block: 1
+#    out_channels: (256, 256)
+#    kernel_sizes: (3, 3)
+#    strides: (2, 2)
+#    residuals: (False, False)
+#    norm: null
+#    dropout: 0.0
+#    conv_modules:
+#       - !name:speechbrain.nnet.CNN.Conv2d
+#       - !name:speechbrain.nnet.CNN.Conv2d
 
 jit_module_keys: []
 
 Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR # yamllint disable-line rule:line-length
-   input_size: 5120
+   # input_size: 5120
+   input_size: 2560
    tgt_vocab: !ref <output_neurons>
    d_model: !ref <d_model>
    nhead: !ref <nhead>
@@ -390,22 +391,22 @@ Beamsearcher: !new:speechbrain.decoders.transducer.TransducerBeamSearcher
    state_beam: !ref <state_beam>
    expand_beam: !ref <expand_beam>
 
-# opt_class: !name:torch.optim.AdamW
-#    lr: !ref <lr>
-#    betas: (0.9, 0.98)
-#    eps: 1.e-8
-#    weight_decay: !ref <weight_decay>
-
-opt_class: !name:schedulefree.AdamWScheduleFree
+opt_class: !name:torch.optim.AdamW
    lr: !ref <lr>
    betas: (0.9, 0.98)
    eps: 1.e-8
    weight_decay: !ref <weight_decay>
 
-# noam_annealing: !new:speechbrain.nnet.schedulers.NoamScheduler
-#     lr_initial: !ref <lr>
-#     n_warmup_steps: !ref <warmup_steps>
-#     model_size: !ref <d_model>
+# opt_class: !name:schedulefree.AdamWScheduleFree
+#    lr: !ref <lr>
+#    betas: (0.9, 0.98)
+#    eps: 1.e-8
+   # weight_decay: !ref <weight_decay>
+
+noam_annealing: !new:speechbrain.nnet.schedulers.NoamScheduler
+    lr_initial: !ref <lr>
+    n_warmup_steps: !ref <warmup_steps>
+    model_size: !ref <d_model>
 
 ############################## Logging and Pretrainer ##########################
 
