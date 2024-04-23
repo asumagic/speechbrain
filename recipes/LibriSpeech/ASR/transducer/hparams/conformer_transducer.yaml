@@ -111,7 +111,7 @@ test_dataloader_opts:
 # Adjust grad_accumulation_factor depending on the DDP node count (here 3)
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 500
+max_batch_len: 600
 max_batch_len_val: 50
 num_bucket: 200
 
@@ -153,7 +153,7 @@ expand_beam: 2.3
 # lm_weight: 0.50
 
 # If True uses torchaudio loss. Otherwise, the numba one
-use_torchaudio: True
+use_torchaudio: False
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
    limit: !ref <number_of_epochs>
@@ -180,22 +180,22 @@ speed_perturb: !new:speechbrain.augment.time_domain.SpeedPerturb
 wav_augment: !new:speechbrain.augment.augmenter.Augmenter
    min_augmentations: 1
    max_augmentations: 1
-   augment_prob: 0.5
+   augment_prob: 1.0
    augmentations: [!ref <speed_perturb>]
 
 
 # Time Drop
 time_drop: !new:speechbrain.augment.freq_domain.SpectrogramDrop
-   drop_length_low: 15
+   drop_length_low: 2
    drop_length_high: 25
    drop_count_low: 5
-   drop_count_high: 5
+   drop_count_high: 20
    replace: "zeros"
 
 # Frequency Drop
 freq_drop: !new:speechbrain.augment.freq_domain.SpectrogramDrop
    drop_length_low: 25
-   drop_length_high: 35
+   drop_length_high: 30
    drop_count_low: 2
    drop_count_high: 2
    replace: "zeros"
@@ -211,7 +211,7 @@ fea_augment: !new:speechbrain.augment.augmenter.Augmenter
    shuffle_augmentations: False
    min_augmentations: 3
    max_augmentations: 3
-   augment_prob: 0.5
+   augment_prob: 1.0
    augmentations: [
       !ref <time_drop>,
       !ref <freq_drop>,
@@ -219,25 +219,41 @@ fea_augment: !new:speechbrain.augment.augmenter.Augmenter
 
 ############################## Models ##########################################
 
+# fastconformer
+# CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
+#    input_shape: (8, 10, 80)
+#    num_blocks: 3
+#    num_layers_per_block: 1
+#    out_channels: (256, 256, 256)
+#    kernel_sizes: (3, 3, 3)
+#    strides: (2, 2, 2)
+#    residuals: (False, False, False)
+#    norm: null
+#    dropout: 0.0
+#    conv_modules:
+#       - !name:speechbrain.nnet.CNN.Conv2d
+#       - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
+#       - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
+
+# vanilla conformer
 CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    input_shape: (8, 10, 80)
-   num_blocks: 3
+   num_blocks: 2
    num_layers_per_block: 1
-   out_channels: (256, 256, 256)
-   kernel_sizes: (3, 3, 3)
-   strides: (2, 2, 2)
-   residuals: (False, False, False)
+   out_channels: (256, 256)
+   kernel_sizes: (3, 3)
+   strides: (2, 2)
+   residuals: (False, False)
    norm: null
    dropout: 0.0
    conv_modules:
       - !name:speechbrain.nnet.CNN.Conv2d
-      - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
-      - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
+      - !name:speechbrain.nnet.CNN.Conv2d
 
 jit_module_keys: []
 
 Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR # yamllint disable-line rule:line-length
-   input_size: 2560
+   input_size: 5120
    tgt_vocab: !ref <output_neurons>
    d_model: !ref <d_model>
    nhead: !ref <nhead>
