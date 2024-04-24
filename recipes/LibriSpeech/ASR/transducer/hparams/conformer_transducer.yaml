@@ -47,10 +47,10 @@ ckpt_interval_minutes: 5 # save checkpoint every N min
 # Empirically, we found that this value should be >= 128.
 # Please, set your parameters accordingly.
 number_of_epochs: 60
-warmup_steps: 15000
+warmup_steps: 5000
 num_workers: 8
 batch_size_valid: 4
-lr: 0.0008
+lr: 0.003
 weight_decay: 0.001
 number_of_ctc_epochs: 45
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)

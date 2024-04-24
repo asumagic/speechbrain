@@ -429,7 +429,7 @@ class ConformerEncoderLayer(nn.Module):
         )
         # self.ffn_module1 = torch.jit.script(self.ffn_module1)
 
-        self.test = CausalPooling(d_model, d_model)
+        # self.test = CausalPooling(d_model, d_model)
 
         self.ffn_module2 = nn.Sequential(
             nn.LayerNorm(d_model),
@@ -493,7 +493,7 @@ class ConformerEncoderLayer(nn.Module):
         # )
         chunkwise_sparse_attention = False
 
-        x = self.test(x)
+        # x = self.test(x)
 
         if self.mha_layer is None:
             self_attn = None
