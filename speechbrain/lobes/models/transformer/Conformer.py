@@ -125,8 +125,8 @@ class ConvolutionModule(nn.Module):
         self.layer_norm = nn.LayerNorm(input_size)
         self.bottleneck = nn.Sequential(
             # pointwise
-            nn.Linear(input_size, 2 * input_size),
-            nn.GLU(dim=2),
+            nn.Conv1d(input_size, 2*input_size, kernel_size=1, stride=1, bias=bias),
+            nn.GLU(dim=1),
         )
         # depthwise
         self.conv = nn.Conv1d(
@@ -217,11 +217,11 @@ class ConvolutionModule(nn.Module):
             # -> [batch_size, t, in_channels]
             out = self.layer_norm(x)
 
-            # -> [batch_size, t, in_channels] (pointwise)
-            out = self.bottleneck(out)
-
             # -> [batch_size, in_channels, t] for the CNN
             out = out.transpose(1, 2)
+
+            # -> [batch_size, in_channels, t] (pointwise)
+            out = self.bottleneck(out)
 
             # -> [batch_size, in_channels, lc+t+final_right_padding]
             out = F.pad(out, (self.padding, final_right_padding), value=0)
@@ -310,8 +310,8 @@ class ConvolutionModule(nn.Module):
                 out = out[:, :-final_right_padding, :]
         else:
             out = self.layer_norm(x)
-            out = self.bottleneck(out)
             out = out.transpose(1, 2)
+            out = self.bottleneck(out)
             out = self.conv(out)
 
             if self.causal:

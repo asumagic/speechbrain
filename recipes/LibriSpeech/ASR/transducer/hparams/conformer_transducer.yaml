@@ -50,7 +50,7 @@ number_of_epochs: 100
 warmup_steps: 25000
 num_workers: 8
 batch_size_valid: 4
-lr: 0.0008
+lr: 0.003
 weight_decay: 0.01
 number_of_ctc_epochs: 45
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
@@ -62,7 +62,7 @@ precision: fp32 # bf16, fp16 or fp32
 # The batch size is used if and only if dynamic batching is set to False
 # Validation and testing are done with fixed batches and not dynamic batching.
 batch_size: 8
-grad_accumulation_factor: 4
+grad_accumulation_factor: 1
 sorting: random
 avg_checkpoints: 15 # Number of checkpoints to average for evaluation
 
@@ -161,7 +161,7 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 normalize: !new:speechbrain.processing.features.InputNormalization
    norm_type: global
    update_until_epoch: 4
-   requires_grad: False
+   requires_grad: True
 
 compute_features: !new:speechbrain.lobes.features.Fbank
    sample_rate: !ref <sample_rate>
@@ -174,7 +174,7 @@ compute_features: !new:speechbrain.lobes.features.Fbank
 # Speed perturbation
 speed_perturb: !new:speechbrain.augment.time_domain.SpeedPerturb
    orig_freq: !ref <sample_rate>
-   speeds: [85, 90, 95, 100, 105, 110, 115]
+   speeds: [95, 100, 105]
 
 # Augmenter: Combines previously defined augmentations to perform data augmentation
 wav_augment: !new:speechbrain.augment.augmenter.Augmenter
@@ -186,16 +186,16 @@ wav_augment: !new:speechbrain.augment.augmenter.Augmenter
 
 # Time Drop
 time_drop: !new:speechbrain.augment.freq_domain.SpectrogramDrop
-   drop_length_low: 2
-   drop_length_high: 20
+   drop_length_low: 15
+   drop_length_high: 25
    drop_count_low: 5
-   drop_count_high: 20
+   drop_count_high: 5
    replace: "zeros"
 
 # Frequency Drop
 freq_drop: !new:speechbrain.augment.freq_domain.SpectrogramDrop
    drop_length_low: 25
-   drop_length_high: 30
+   drop_length_high: 35
    drop_count_low: 2
    drop_count_high: 2
    replace: "zeros"
@@ -228,9 +228,9 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    kernel_sizes: (3, 3, 3)
    strides: (2, 2, 2)
    residuals: (False, False, False)
-   norm: null
-   conv_init: kaiming
-   dropout: 0.0
+   # norm: null
+   # conv_init: kaiming
+   # dropout: 0.0
    conv_modules:
       - !name:speechbrain.nnet.CNN.Conv2d
       - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
