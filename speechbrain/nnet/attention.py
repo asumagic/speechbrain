@@ -996,7 +996,7 @@ class PositionalwiseFeedForward(nn.Module):
         if stupid_causal_pooling:
             outputs = [CausalPooling(d_ffn, input_size)]
         elif self.output_groups != 1:
-            outputs = [GroupedLinear(d_ffn, input_size, groups=input_groups)]
+            outputs = [GroupedLinear(d_ffn, input_size, groups=output_groups)]
         else:
             outputs = [nn.Linear(d_ffn, input_size)]
 
@@ -1006,6 +1006,7 @@ class PositionalwiseFeedForward(nn.Module):
             nn.Dropout(dropout),
             *outputs
         )
+        print(self.ffn)
 
     def forward(self, x: torch.Tensor):
         """Applies PositionalwiseFeedForward to the input tensor x."""

@@ -228,9 +228,9 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    kernel_sizes: (3, 3, 3)
    strides: (2, 2, 2)
    residuals: (False, False, False)
-   # norm: null
-   # conv_init: kaiming
-   # dropout: 0.0
+   norm: null
+   conv_init: kaiming
+   dropout: 0.0
    conv_modules:
       - !name:speechbrain.nnet.CNN.Conv2d
       - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
