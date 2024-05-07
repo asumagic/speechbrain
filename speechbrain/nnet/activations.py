@@ -148,10 +148,10 @@ class Swish(torch.nn.Module):
     >>> x = act(x)
     """
 
-    def __init__(self, beta: float = 1.0):
+    def __init__(self, beta=1):
         super().__init__()
         self.beta = beta
-        self.silu = torch.nn.SiLU()
+        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, x):
         """Returns the Swished input tensor.
@@ -165,7 +165,4 @@ class Swish(torch.nn.Module):
         -------
         The swished output.
         """
-        if self.beta != 1:  # slow path
-            x = x * self.beta
-
-        return self.silu(x)
+        return x * self.sigmoid(self.beta * x)
