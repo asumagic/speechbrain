@@ -134,16 +134,8 @@ class ASR(sb.Brain):
 
             return p_ctc, p_ce, logits_transducer, wav_lens
 
-        elif stage == sb.Stage.VALID:
-            best_hyps, scores, _, _ = self.hparams.Greedysearcher(x)
-            return logits_transducer, wav_lens, best_hyps
         else:
-            (
-                best_hyps,
-                best_scores,
-                nbest_hyps,
-                nbest_scores,
-            ) = self.hparams.Beamsearcher(x)
+            best_hyps, scores, _, _ = self.hparams.Greedysearcher(x)
             return logits_transducer, wav_lens, best_hyps
 
     def compute_objectives(self, predictions, batch, stage):
