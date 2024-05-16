@@ -218,12 +218,18 @@ fea_augment: !new:speechbrain.augment.augmenter.Augmenter
 
 CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    input_shape: (8, 10, 80)
-   num_blocks: 2
+   num_blocks: 3
    num_layers_per_block: 1
-   out_channels: (64, 32)
-   kernel_sizes: (3, 3)
-   strides: (2, 2)
-   residuals: (False, False)
+   out_channels: (64, 64, 64)
+   kernel_sizes: (3, 3, 3)
+   strides: (2, 2, 2)
+   residuals: (False, False, False)
+   norm: null
+   dropout: 0.0
+   conv_modules:
+      - !name:speechbrain.nnet.CNN.Conv2d
+      - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
+      - !name:speechbrain.nnet.CNN.DepthwiseSeparableConv2d
 
 Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.TransformerASR # yamllint disable-line rule:line-length
    input_size: 640
