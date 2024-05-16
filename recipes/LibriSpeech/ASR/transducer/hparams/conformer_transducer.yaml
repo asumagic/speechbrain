@@ -245,6 +245,7 @@ Transformer: !new:speechbrain.lobes.models.transformer.TransformerASR.Transforme
    attention_type: RelPosMHAXL
    normalize_before: True
    causal: False
+   kernel_size: 9
 
 # We must call an encoder wrapper so the decoder isn't run (we don't have any)
 enc: !new:speechbrain.lobes.models.transformer.TransformerASR.EncoderWrapper
