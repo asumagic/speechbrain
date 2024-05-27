@@ -295,9 +295,14 @@ transducer_lin: !new:speechbrain.nnet.linear.Linear
 log_softmax: !new:speechbrain.nnet.activations.Softmax
    apply_log: True
 
-transducer_cost: !name:speechbrain.nnet.losses.transducer_loss
+transducer_cost: !name:speechbrain.nnet.losses.fast_rnnt_pruned_loss
    blank_index: !ref <blank_index>
-   use_torchaudio: !ref <use_torchaudio>
+   prune_range: 5 # how many symbols to keep for each frame.
+   mode: simple  #simple | smoothed
+   loss_scale: 0.5 #scale for the `mode` loss before adding pruned_loss
+   warmup_epochs: 3 # epochs for the `mode` loss before adding the pruned_loss
+   jointer: !ref <Tjoint>
+   reduction: mean
 
 # This is the RNNLM that is used according to the Huggingface repository
 # NB: It has to match the pre-trained RNNLM!!
