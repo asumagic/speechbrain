@@ -94,7 +94,7 @@ class ASR(sb.Brain):
             pad_idx=self.hparams.pad_index,
             dynchunktrain_config=dynchunktrain_config,
         )
-        # x = self.modules.proj_enc(x)
+        x = self.modules.proj_enc(x)
 
         e_in = self.modules.emb(tokens_with_bos)
         e_in = torch.nn.functional.dropout(
@@ -106,7 +106,7 @@ class ASR(sb.Brain):
         h = torch.nn.functional.dropout(
             h, self.hparams.dec_dropout, training=(stage == sb.Stage.TRAIN)
         )
-        # h = self.modules.proj_dec(h)
+        h = self.modules.proj_dec(h)
 
         # Compute outputs
         if stage == sb.Stage.TRAIN:

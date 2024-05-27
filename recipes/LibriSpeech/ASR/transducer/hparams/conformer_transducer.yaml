@@ -253,8 +253,20 @@ enc: !new:speechbrain.lobes.models.transformer.TransformerASR.EncoderWrapper
 
 # For MTL CTC over the encoder
 proj_ctc: !new:speechbrain.nnet.linear.Linear
+   input_size: !ref <output_neurons>
+   n_neurons: !ref <output_neurons>
+
+# Define some projection layers to make sure that enc and dec
+# output dim are the same before joining
+proj_enc: !new:speechbrain.nnet.linear.Linear
    input_size: !ref <d_model>
    n_neurons: !ref <output_neurons>
+   bias: False
+
+proj_dec: !new:speechbrain.nnet.linear.Linear
+   input_size: !ref <dec_dim>
+   n_neurons: !ref <output_neurons>
+   bias: False
 
 # Uncomment for MTL with CTC
 ctc_cost: !name:speechbrain.nnet.losses.ctc_loss
@@ -283,14 +295,9 @@ ce_cost: !name:speechbrain.nnet.losses.nll_loss
    label_smoothing: 0.1
 
 Tjoint: !new:speechbrain.nnet.transducer.transducer_joint.Fast_RNNT_Joiner
-   input_dim: !ref <d_model>
+   input_dim: !ref <joint_dim>
    inner_dim: !ref <joint_dim>
    output_dim: !ref <output_neurons>
-
-transducer_lin: !new:speechbrain.nnet.linear.Linear
-   input_size: !ref <joint_dim>
-   n_neurons: !ref <output_neurons>
-   bias: False
 
 log_softmax: !new:speechbrain.nnet.activations.Softmax
    apply_log: True
@@ -325,16 +332,17 @@ modules:
    emb: !ref <emb>
    dec: !ref <dec>
    Tjoint: !ref <Tjoint>
-   transducer_lin: !ref <transducer_lin>
    normalize: !ref <normalize>
    # lm_model: !ref <lm_model>
    proj_ctc: !ref <proj_ctc>
+   proj_dec: !ref <proj_dec>
+   proj_enc: !ref <proj_enc>
 #   dec_lin: !ref <dec_lin>
 
 # for MTL
 # update model if any HEAD module is added
 model: !new:torch.nn.ModuleList
-   - [!ref <CNN>, !ref <enc>, !ref <emb>, !ref <dec>, !ref <transducer_lin>]
+   - [!ref <CNN>, !ref <enc>, !ref <emb>, !ref <dec>, !ref <proj_dec>, !ref <proj_enc>]
 
 ############################## Decoding & optimiser ############################
 
@@ -342,14 +350,14 @@ model: !new:torch.nn.ModuleList
 tokenizer: !new:sentencepiece.SentencePieceProcessor
 
 Greedysearcher: !new:speechbrain.decoders.transducer.FastRNNTBeamSearcher
-   decode_network_lst: [!ref <emb>, !ref <dec>]
+   decode_network_lst: [!ref <emb>, !ref <dec>, !ref <proj_dec>]
    tjoint: !ref <Tjoint>
    blank_id: !ref <blank_index>
    beam_size: 1
    nbest: 1
 
 Beamsearcher: !new:speechbrain.decoders.transducer.FastRNNTBeamSearcher
-   decode_network_lst: [!ref <emb>, !ref <dec>]
+   decode_network_lst: [!ref <emb>, !ref <dec>, !ref <proj_dec>]
    tjoint: !ref <Tjoint>
    blank_id: !ref <blank_index>
    beam_size: !ref <beam_size>
