@@ -254,8 +254,6 @@ def fast_rnnt_pruned_loss(
     boundary[:, 3] = (input_lens * S).round().int()
     boundary = boundary.to(enc_out.device)
 
-    print(enc_out.shape, dec_out.shape)
-
     if mode == "simple":
         mode_loss, (px_grad, py_grad) = fast_rnnt.rnnt_loss_simple(
             am=enc_out,
