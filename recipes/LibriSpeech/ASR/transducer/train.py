@@ -47,6 +47,8 @@ logger = logging.getLogger(__name__)
 
 # Define training procedure
 
+torch.backends.cudnn.benchmark = False
+
 
 class ASR(sb.Brain):
     def compute_forward(self, batch, stage):
@@ -92,7 +94,7 @@ class ASR(sb.Brain):
             pad_idx=self.hparams.pad_index,
             dynchunktrain_config=dynchunktrain_config,
         )
-        x = self.modules.proj_enc(x)
+        # x = self.modules.proj_enc(x)
 
         e_in = self.modules.emb(tokens_with_bos)
         e_in = torch.nn.functional.dropout(
@@ -104,15 +106,7 @@ class ASR(sb.Brain):
         h = torch.nn.functional.dropout(
             h, self.hparams.dec_dropout, training=(stage == sb.Stage.TRAIN)
         )
-        h = self.modules.proj_dec(h)
-
-        # Joint network
-        # add labelseq_dim to the encoder tensor: [B,T,H_enc] => [B,T,1,H_enc]
-        # add timeseq_dim to the decoder tensor: [B,U,H_dec] => [B,1,U,H_dec]
-        joint = self.modules.Tjoint(x.unsqueeze(2), h.unsqueeze(1))
-
-        # Output layer for transducer log-probabilities
-        logits_transducer = self.modules.transducer_lin(joint)
+        # h = self.modules.proj_dec(h)
 
         # Compute outputs
         if stage == sb.Stage.TRAIN:
@@ -132,24 +126,29 @@ class ASR(sb.Brain):
                 p_ce = self.modules.dec_lin(h)
                 p_ce = self.hparams.log_softmax(p_ce)
 
-            return p_ctc, p_ce, logits_transducer, wav_lens
+            return p_ctc, p_ce, x, h, wav_lens
 
         else:
             best_hyps, scores, _, _ = self.hparams.Greedysearcher(x)
-            return logits_transducer, wav_lens, best_hyps
+            return x, h, wav_lens, best_hyps
 
     def compute_objectives(self, predictions, batch, stage):
         """Computes the loss (Transducer+(CTC+NLL)) given predictions and targets."""
 
         ids = batch.id
+        current_epoch = self.hparams.epoch_counter.current
         tokens, token_lens = batch.tokens
         tokens_eos, token_eos_lens = batch.tokens_eos
 
-        # Train returns 4 elements vs 3 for val and test
-        if len(predictions) == 4:
-            p_ctc, p_ce, logits_transducer, wav_lens = predictions
+        # Train returns 5 elements vs 4 for val and test
+        if len(predictions) == 5:
+            p_ctc, p_ce, enc_out, dec_out, wav_lens = predictions
         else:
-            logits_transducer, wav_lens, predicted_tokens = predictions
+            enc_out, dec_out, wav_lens, predicted_tokens = predictions
+
+        # pruned loss only supports fp32
+        enc_out = enc_out.to(torch.float32)
+        dec_out = dec_out.to(torch.float32)
 
         if stage == sb.Stage.TRAIN:
             # Labels must be extended if parallel augmentation or concatenated
@@ -176,7 +175,7 @@ class ASR(sb.Brain):
                     p_ce, tokens_eos, length=token_eos_lens
                 )
             loss_transducer = self.hparams.transducer_cost(
-                logits_transducer, tokens, wav_lens, token_lens
+                enc_out, dec_out, tokens, wav_lens, token_lens, ids, current_epoch
             )
             loss = (
                 self.hparams.ctc_weight * CTC_loss
@@ -186,7 +185,7 @@ class ASR(sb.Brain):
             )
         else:
             loss = self.hparams.transducer_cost(
-                logits_transducer, tokens, wav_lens, token_lens
+                enc_out, dec_out, tokens, wav_lens, token_lens, ids, current_epoch
             )
 
         if stage != sb.Stage.TRAIN:
