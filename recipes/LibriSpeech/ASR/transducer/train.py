@@ -175,13 +175,13 @@ class ASR(sb.Brain):
                     p_ce, tokens_eos, length=token_eos_lens
                 )
             loss_transducer = self.hparams.transducer_cost(
-                enc_out.to("cpu"), dec_out.to("cpu"), tokens.to("cpu"), wav_lens.to("cpu"), token_lens.to("cpu"), ids, current_epoch
+                enc_out, dec_out, tokens, wav_lens, token_lens, ids, current_epoch
             )
             loss = (
                 self.hparams.ctc_weight * CTC_loss
                 + self.hparams.ce_weight * CE_loss
                 + (1 - (self.hparams.ctc_weight + self.hparams.ce_weight))
-                * loss_transducer.to("cuda")
+                * loss_transducer
             )
         else:
             loss = self.hparams.transducer_cost(
