@@ -283,7 +283,7 @@ ce_cost: !name:speechbrain.nnet.losses.nll_loss
    label_smoothing: 0.1
 
 Tjoint: !new:speechbrain.nnet.transducer.transducer_joint.Fast_RNNT_Joiner
-   input_dim: !ref <output_neurons>
+   input_dim: !ref <d_model>
    inner_dim: !ref <joint_dim>
    output_dim: !ref <output_neurons>
 
