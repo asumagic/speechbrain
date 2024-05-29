@@ -445,6 +445,7 @@ class ConformerEncoderLayer(nn.Module):
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: torch.Tensor = None,
         dynchunktrain_config: Optional[DynChunkTrainConfig] = None,
+        warmup: float = 1.0,
     ):
         """
         Arguments
@@ -461,7 +462,13 @@ class ConformerEncoderLayer(nn.Module):
             Dynamic Chunk Training configuration object for streaming,
             specifically involved here to apply Dynamic Chunk Convolution to
             the convolution module.
+        warmup: float, optional
+            Warmup value, see :meth:`~ConformerEncoder.forward`. `1.0` behaves
+            as normally and lower values may skip the entire layer.
         """
+        if warmup < 1.0:
+            full_skip = x
+
         conv_mask: Optional[torch.Tensor] = None
         if src_key_padding_mask is not None:
             conv_mask = src_key_padding_mask.unsqueeze(-1)
@@ -486,6 +493,10 @@ class ConformerEncoderLayer(nn.Module):
         )
         # ffn module
         x = self.norm2(x + 0.5 * self.ffn_module2(x))
+
+        if warmup < 1.0:
+            x = (x * warmup) + (full_skip * (1.0 - warmup))
+
         return x, self_attn
 
     def forward_streaming(
@@ -680,6 +691,7 @@ class ConformerEncoder(nn.Module):
         src_key_padding_mask: Optional[torch.Tensor] = None,
         pos_embs: Optional[torch.Tensor] = None,
         dynchunktrain_config: Optional[DynChunkTrainConfig] = None,
+        warmup: float = 1.0,
     ):
         """
         Arguments
@@ -698,6 +710,16 @@ class ConformerEncoder(nn.Module):
             Dynamic Chunk Training configuration object for streaming,
             specifically involved here to apply Dynamic Chunk Convolution to the
             convolution module.
+        warmup: float, optional
+            Conformer layer level warmup; inspired by k2. For each layer, the
+            output will become:
+            `(warmup * layer(input)) + ((1 - warmup) * input)`. In other words,
+            lower values of warmup will more greatly "skip" the layer, allowing
+            to mostly bypass the layer.
+            A value of `0.0` completely skips the layer and a value of `1.0`
+            behaves as normally.
+            This helps the model reach initial convergence typically faster than
+            a normal lr warmup schedule would.
         """
         if self.attention_type == "RelPosMHAXL":
             if pos_embs is None:
@@ -714,6 +736,7 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 pos_embs=pos_embs,
                 dynchunktrain_config=dynchunktrain_config,
+                warmup=warmup,
             )
             attention_lst.append(attention)
         output = self.norm(output)
