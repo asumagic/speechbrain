@@ -186,7 +186,7 @@ class ASR(sb.Brain):
             )
         else:
             loss = self.hparams.transducer_cost(
-                enc_out, dec_out, tokens, wav_lens, token_lens, ids, current_epoch
+                enc_out, dec_out, tokens, wav_lens, token_lens, ids, current_epoch - 1
             )
 
         if stage != sb.Stage.TRAIN:
