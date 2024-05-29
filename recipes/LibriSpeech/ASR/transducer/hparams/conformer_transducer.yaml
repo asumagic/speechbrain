@@ -372,6 +372,7 @@ opt_class: !name:torch.optim.AdamW
    betas: (0.9, 0.98)
    eps: 1.e-8
    weight_decay: !ref <weight_decay>
+   amsgrad: True
 
 noam_annealing: !new:speechbrain.nnet.schedulers.NoamScheduler
    lr_initial: !ref <lr>
