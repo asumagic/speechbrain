@@ -177,6 +177,7 @@ class ASR(sb.Brain):
             loss_transducer = self.hparams.transducer_cost(
                 enc_out, dec_out, tokens, wav_lens, token_lens, ids, current_epoch
             )
+            print(f"CTC: {CTC_loss.item()}, RNN-T: {loss_transducer.item()}")
             loss = (
                 self.hparams.ctc_weight * CTC_loss
                 + self.hparams.ce_weight * CE_loss
