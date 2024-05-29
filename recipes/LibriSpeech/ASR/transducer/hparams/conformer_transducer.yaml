@@ -56,7 +56,7 @@ number_of_ctc_epochs: 60
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
 ce_weight: 0.0 # Multitask with CE for the decoder (0.0 = disabled)
 max_grad_norm: 5.0
-loss_reduction: 'mean'
+loss_reduction: 'batchmean'
 precision: fp32 # bf16, fp16 or fp32
 
 # The batch size is used if and only if dynamic batching is set to False
