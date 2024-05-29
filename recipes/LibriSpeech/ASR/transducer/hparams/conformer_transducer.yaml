@@ -201,18 +201,18 @@ freq_drop: !new:speechbrain.augment.freq_domain.SpectrogramDrop
 # Time warp
 time_warp: !new:speechbrain.augment.freq_domain.Warping
 
-fea_augment: !new:speechbrain.augment.augmenter.Augmenter
-   parallel_augment: False
-   concat_original: False
-   repeat_augment: 1
-   shuffle_augmentations: False
-   min_augmentations: 3
-   max_augmentations: 3
-   augment_prob: 1.0
-   augmentations: [
-      !ref <time_drop>,
-      !ref <freq_drop>,
-      !ref <time_warp>]
+# fea_augment: !new:speechbrain.augment.augmenter.Augmenter
+#    parallel_augment: False
+#    concat_original: False
+#    repeat_augment: 1
+#    shuffle_augmentations: False
+#    min_augmentations: 3
+#    max_augmentations: 3
+#    augment_prob: 1.0
+#    augmentations: [
+#       !ref <time_drop>,
+#       !ref <freq_drop>,
+#       !ref <time_warp>]
 
 ############################## Models ##########################################
 
