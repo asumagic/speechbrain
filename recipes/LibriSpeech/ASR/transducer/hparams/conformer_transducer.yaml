@@ -172,6 +172,7 @@ compute_features: !new:speechbrain.lobes.features.Fbank
 speed_perturb: !new:speechbrain.augment.time_domain.SpeedPerturb
    orig_freq: !ref <sample_rate>
    speeds: [95, 100, 105]
+   device: cuda
 
 # Augmenter: Combines previously defined augmentations to perform data augmentation
 wav_augment: !new:speechbrain.augment.augmenter.Augmenter
