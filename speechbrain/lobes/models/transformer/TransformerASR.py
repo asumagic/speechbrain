@@ -429,6 +429,7 @@ class TransformerASR(TransformerInterface):
         wav_len=None,
         pad_idx=0,
         dynchunktrain_config: Optional[DynChunkTrainConfig] = None,
+        encoder_kwargs={},
     ):
         """
         Encoder forward pass
@@ -443,6 +444,9 @@ class TransformerASR(TransformerInterface):
             The index used for padding.
         dynchunktrain_config : DynChunkTrainConfig
             Dynamic chunking config.
+        encoder_kwargs
+            Extraneous keyword arguments to forward as-is to the encoder
+            (including encoder-dependent arguments).
 
         Returns
         -------
@@ -482,6 +486,7 @@ class TransformerASR(TransformerInterface):
             src_key_padding_mask=src_key_padding_mask,
             pos_embs=pos_embs_source,
             dynchunktrain_config=dynchunktrain_config,
+            **encoder_kwargs,
         )
 
         return encoder_out
