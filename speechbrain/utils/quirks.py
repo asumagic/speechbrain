@@ -5,26 +5,34 @@ Author:
     * Sylvain de Langen 2024
 """
 
-import torch
 import logging
 
+import torch
+
 logger = logging.getLogger(__name__)
+
 
 def disable_cudnn_benchmarking():
     """Disables CuDNN benchmarking. no-op on platforms where it is already off
     by default.
-    
+
     Benchmarking, when enabled, theoretically improves convolution performance
     by automatically comparing different kernels for some operations.
-    
+
     However, benchmarking has to be re-run for every unique input shape, which
     makes it unsuitable for highly dynamic shapes.
     Since SpeechBrain does tend to use very varied shapes without attempting to
     pad the differences out, leaving benchmarking on can severely degrade
     training performance.
 
+    This function disables it as we deem no-benchmarking to be a saner default
+    to avoid performance bugs at the moment.
+
     As of PyTorch 2.3.0, the default is `False` for CUDA GPUs, but `True`
     for HIP GPUs.
+
+    The HIP equivalent to CuDNN is MIOpen, but it is controlled through the same
+    PyTorch API.
     """
 
     logger.info(
