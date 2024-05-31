@@ -47,8 +47,6 @@ logger = logging.getLogger(__name__)
 
 # Define training procedure
 
-torch.backends.cudnn.benchmark = False
-
 
 class ASR(sb.Brain):
     def compute_forward(self, batch, stage):
