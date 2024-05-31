@@ -727,8 +727,6 @@ class ConformerEncoder(nn.Module):
                     "The chosen attention type for the Conformer is RelPosMHAXL. For this attention type, the positional embeddings are mandatory"
                 )
 
-        print("warmup:", warmup)
-
         output = src
         attention_lst = []
         for enc_layer in self.layers:
