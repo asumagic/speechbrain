@@ -221,7 +221,7 @@ CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
    input_shape: (8, 10, 80)
    num_blocks: 3
    num_layers_per_block: 1
-   out_channels: (64, 64, 64)
+   out_channels: (256, 256, 256)
    kernel_sizes: (3, 3, 3)
    strides: (2, 2, 2)
    residuals: (False, False, False)
