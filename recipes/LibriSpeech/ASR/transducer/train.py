@@ -93,7 +93,7 @@ class ASR(sb.Brain):
             pad_idx=self.hparams.pad_index,
             dynchunktrain_config=dynchunktrain_config,
             encoder_kwargs={
-                "warmup": self.conformer_warmup(self.optimizer_step)
+                "warmup": self.hparams.conformer_warmup(self.optimizer_step)
             }
         )
         x = self.modules.proj_enc(x)
