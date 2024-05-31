@@ -53,6 +53,8 @@ INTRA_EPOCH_CKPT_FLAG = "brain_intra_epoch_ckpt"
 PYTHON_VERSION_MAJOR = 3
 PYTHON_VERSION_MINOR = 7
 
+sb.utils.quirks.apply_quirks()
+
 # Arguments passed via the run opts dictionary
 run_opt_defaults = {
     "test_only": False,
