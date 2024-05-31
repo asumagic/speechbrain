@@ -47,7 +47,7 @@ ckpt_interval_minutes: 5 # save checkpoint every N min
 # Empirically, we found that this value should be >= 128.
 # Please, set your parameters accordingly.
 number_of_epochs: 150
-warmup_steps: 25000
+warmup_steps: 3000
 num_workers: 4
 batch_size_valid: 4
 lr: 0.005
@@ -376,7 +376,7 @@ opt_class: !name:torch.optim.AdamW
    amsgrad: True
 
 conformer_warmup: !new:speechbrain.lobes.models.transformer.Conformer.ConformerWarmupScheduler
-   step_count: 1000
+   step_count: !ref <warmup_steps>
 
 lr_scheduler: !new:speechbrain.nnet.schedulers.ReduceLROnPlateau
     factor: 0.5
