@@ -52,7 +52,7 @@ num_workers: 4
 batch_size_valid: 4
 lr: 0.005
 lr_final: 0.0005
-weight_decay: 0.01
+weight_decay: 0.0001
 number_of_ctc_epochs: 60
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
 ce_weight: 0.0 # Multitask with CE for the decoder (0.0 = disabled)
