@@ -222,9 +222,7 @@ class ASR(sb.Brain):
         # Perform end-of-iteration things, like annealing, logging, etc.
         if stage == sb.Stage.VALID:
             # Learning rate annealing
-            current_lr, next_lr = self.hparams.lr_scheduler(
-                [self.optimizer], epoch, stage_loss
-            )
+            current_lr, next_lr = self.hparams.lr_scheduler(epoch)
             schedulers.update_learning_rate(self.optimizer, next_lr)
 
             steps = self.optimizer_step
