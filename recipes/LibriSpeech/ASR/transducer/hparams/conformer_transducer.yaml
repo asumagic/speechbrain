@@ -50,8 +50,8 @@ number_of_epochs: 150
 warmup_steps: 3000
 num_workers: 4
 batch_size_valid: 4
-lr: 0.005
-lr_final: 0.0005
+lr: 0.002
+lr_final: 0.0001
 weight_decay: 0.0001
 number_of_ctc_epochs: 60
 ctc_weight: 0.3 # Multitask with CTC for the encoder (0.0 = disabled)
@@ -110,7 +110,7 @@ test_dataloader_opts:
 # Adjust grad_accumulation_factor depending on the DDP node count (here 3)
 # Or turn it off (but training speed will decrease)
 dynamic_batching: True
-max_batch_len: 600
+max_batch_len: 500
 max_batch_len_val: 50 # we reduce it as the beam is much wider (VRAM)
 num_bucket: 200
 
@@ -390,7 +390,7 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
    checkpoints_dir: !ref <save_folder>
    recoverables:
       model: !ref <model>
-      scheduler: !ref <lr_scheduler>
+      # scheduler: !ref <lr_scheduler>
       normalizer: !ref <normalize>
       counter: !ref <epoch_counter>
 
