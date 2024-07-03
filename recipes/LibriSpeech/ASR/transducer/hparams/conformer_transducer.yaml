@@ -344,7 +344,7 @@ modules:
 # for MTL
 # update model if any HEAD module is added
 model: !new:torch.nn.ModuleList
-   - [!ref <CNN>, !ref <enc>, !ref <emb>, !ref <dec>, !ref <proj_dec>, !ref <proj_enc>]
+   - [!ref <CNN>, !ref <enc>, !ref <emb>, !ref <dec>, !ref <proj_dec>, !ref <proj_enc>, !ref <Tjoint>]
 
 ############################## Decoding & optimiser ############################
 
