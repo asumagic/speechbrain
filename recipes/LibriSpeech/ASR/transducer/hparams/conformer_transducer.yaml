@@ -135,7 +135,7 @@ transformer_dropout: 0.1
 activation: !name:torch.nn.GELU
 output_neurons: 1000
 dec_dim: 512
-dec_emb_dropout: 0.2
+dec_emb_dropout: 0.0  # FIXME: emb is one-hot, why did i even do this?
 dec_dropout: 0.1
 
 # Decoding parameters
