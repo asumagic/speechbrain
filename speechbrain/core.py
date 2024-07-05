@@ -875,7 +875,6 @@ class Brain:
             )
 
         if hasattr(self.hparams, "checkpointer"):
-            params = self.modules.named_parameters()
             ckpt_params = {}
 
             for recoverable_name, recoverable in self.hparams.checkpointer.recoverables.items():
@@ -885,7 +884,7 @@ class Brain:
 
             ckpt_param_tensors = [param.data for param in ckpt_params.values()]
 
-            for name, param in params.items():
+            for name, param in self.modules.named_parameters():
                 if param.requires_grad and param.data not in ckpt_param_tensors:
                     logger.warning(f"* Parameter tensor not in torch.nn.Module recoverables of checkpointer: {name}")
                 else:
