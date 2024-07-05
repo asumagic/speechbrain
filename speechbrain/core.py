@@ -883,7 +883,7 @@ class Brain:
             for recoverable_name, recoverable in self.hparams.checkpointer.recoverables.items():
                 if isinstance(recoverable, torch.nn.Module):
                     recoverable_params = set(name for name, param in recoverable.named_parameters())
-                    ckpt_names += recoverable_params
+                    ckpt_names |= recoverable_params
                     logger.info(f"* {recoverable_name}: {len(recoverable_params)}")
             
             print("\n".join(ckpt_names))
