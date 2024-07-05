@@ -857,18 +857,31 @@ class Brain:
         """Prints the number of trainable parameters in the model."""
         total_trainable_params = 0
         total_parameters = 0
+
+        logger.info("Dumping model parameters...")
+
         for name, parameter in self.modules.named_parameters():
             total_parameters += parameter.numel()
             if parameter.requires_grad:
                 total_trainable_params += parameter.numel()
 
             logger.info(
-                f"\t{'GRAD' if parameter.requires_grad else '----'} "
+                f"* {'GRAD' if parameter.requires_grad else '----'} "
                 f"shape={str(tuple(parameter.shape)):>20} "
                 f"dtype={str(parameter.dtype):<15} "
-                f"numel={parameter.numel():>9} "
-                f"({(parameter.numel() * parameter.element_size()) / 1024:>9.1f}KiB: {name:<100}"
+                f"{(parameter.numel() * parameter.element_size()) / 1024:>9.1f}KiB "
+                f"{parameter.numel():>9}: "
+                f"{name:<100}"
             )
+
+        param_names = set(name for name, param in self.modules.named_parameters())
+        checkpointer = self.hparams["checkpointer"]
+
+        if "checkpointer" in self.hparams:
+            logger.info("Found checkpointer in hparams, exploring keys")
+
+            for recoverable_name, recoverable in checkpointer.recoverables:
+                print(recoverable, type(recoverable))
 
         class_name = self.__class__.__name__
         if total_parameters == 0:
