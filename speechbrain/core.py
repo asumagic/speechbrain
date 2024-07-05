@@ -868,6 +868,8 @@ class Brain:
             logger.info(
                 f"* {'GRAD' if parameter.requires_grad else '----'} "
                 f"shape={str(tuple(parameter.shape)):>20} "
+                f"mean={parameter.sum() / parameter.numel():8.4f} "
+                f"std={parameter.std():8.4f} "
                 f"dtype={str(parameter.dtype):<15} "
                 f"{(parameter.numel() * parameter.element_size()) / 1024:>9.1f}KiB "
                 f"{parameter.numel():>9}: "
