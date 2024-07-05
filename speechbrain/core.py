@@ -874,6 +874,7 @@ class Brain:
                 f"{name:<100}"
             )
 
+        tested_checkpoint_key_count = 0
         if hasattr(self.hparams, "checkpointer"):
             ckpt_params = {}
 
@@ -883,8 +884,13 @@ class Brain:
                     ckpt_params.update(recoverable_params)
 
             for name, param in self.modules.named_parameters():
-                if param.requires_grad and not any(param.data.data_ptr() == ckpt_param.data.data_ptr() for ckpt_param in ckpt_params.values()):
-                    logger.warning(f"* Parameter found in `modules` not in any `torch.nn.Module` of `checkpointer.recoverables`: {name} (could be a false positive, or something isn't being saved, whether intentionally or not)")
+                if param.requires_grad:
+                    tested_checkpoint_key_count += 1
+                    if not any(param.data.data_ptr() == ckpt_param.data.data_ptr() for ckpt_param in ckpt_params.values()):
+                        logger.warning(f"* Parameter found in `modules` not in any `torch.nn.Module` of `checkpointer.recoverables`: {name} (could be a false positive, or something isn't being saved, whether intentionally or not)")
+
+        if tested_checkpoint_key_count:
+            logger.warning(f"No checkpointer found; couldn't sanity check recoverables")
 
         class_name = self.__class__.__name__
         if total_parameters == 0:
