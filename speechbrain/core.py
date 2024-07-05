@@ -861,7 +861,7 @@ class Brain:
             total_parameters += parameter.numel()
             if parameter.requires_grad:
                 total_trainable_params += parameter.numel()
-            logger.info(f"\t{'GRAD' if parameter.requires_grad else '    '} {name:>50}: {parameter.numel}")
+            logger.info(f"\t{'GRAD' if parameter.requires_grad else '----'} {name:<100}: {parameter.numel() / 1024.0:5.1}k (shape={parameter.shape}, type={parameter.dtype})")
         class_name = self.__class__.__name__
         if total_parameters == 0:
             logger.warning("The model has no parameters!")
