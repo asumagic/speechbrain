@@ -884,7 +884,7 @@ class Brain:
 
             for name, param in self.modules.named_parameters():
                 if param.requires_grad and not any(param.data.data_ptr() == ckpt_param.data.data_ptr() for ckpt_param in ckpt_params.values()):
-                    logger.warning(f"* Parameter tensor not in torch.nn.Module recoverables of checkpointer: {name} (could be a false positive or something isn't being saved!)")
+                    logger.warning(f"* Parameter found in `modules` not in any `torch.nn.Module` of `checkpointer.recoverables`: {name} (could be a false positive, or something isn't being saved, whether intentionally or not)")
 
         class_name = self.__class__.__name__
         if total_parameters == 0:
