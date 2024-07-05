@@ -875,12 +875,11 @@ class Brain:
             )
 
         param_names = set(name for name, param in self.modules.named_parameters())
-        checkpointer = self.hparams["checkpointer"]
 
-        if "checkpointer" in self.hparams:
+        if hasattr(self.hparams, "checkpointer"):
             logger.info("Found checkpointer in hparams, exploring keys")
 
-            for recoverable_name, recoverable in checkpointer.recoverables:
+            for recoverable_name, recoverable in self.hparams.checkpointer.recoverables:
                 print(recoverable, type(recoverable))
 
         class_name = self.__class__.__name__
