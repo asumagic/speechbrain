@@ -882,10 +882,8 @@ class Brain:
                     recoverable_params = {f"{recoverable_name}.{name}": param for name, param in recoverable.named_parameters()}
                     ckpt_params.update(recoverable_params)
 
-            ckpt_param_tensors = [param.data for param in ckpt_params.values()]
-
             for name, param in self.modules.named_parameters():
-                if param.requires_grad and not any(param.data is ckpt_param for ckpt_param in ckpt_param_tensors):
+                if param.requires_grad and not any(param.data.data_ptr() == ckpt_param.data.data_ptr() for ckpt_param in ckpt_params.values()):
                     logger.warning(f"* Parameter tensor not in torch.nn.Module recoverables of checkpointer: {name}")
                 else:
                     logger.debug(f"* OK: {name}")
