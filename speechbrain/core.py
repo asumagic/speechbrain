@@ -887,7 +887,7 @@ class Brain:
                 if param.requires_grad:
                     tested_checkpoint_key_count += 1
                     found_match = False
-                    for ckpt_name, ckpt_param in ckpt_params.values():
+                    for ckpt_name, ckpt_param in ckpt_params.items():
                         if param.data.data_ptr() == ckpt_param.data.data_ptr():
                             found_match = True
                             match_name = ckpt_name
