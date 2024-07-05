@@ -874,11 +874,17 @@ class Brain:
                 f"{name:<100}"
             )
 
+        warned_ptrs = set()
+
         for key, value in self.hparams.__dict__.items():
             if isinstance(value, torch.nn.Module):
                 for module_name, module_param in value.named_parameters():
-                    if not any(module_param.data.data_ptr() == known_param.data.data_ptr() for known_param in self.modules.parameters()):
+                    if (
+                        module_param.data.data_ptr() not in warned_ptrs
+                        and not any(module_param.data.data_ptr() == known_param.data.data_ptr() for known_param in self.modules.parameters())
+                    ):
                         logger.warning(f"* Trainable parameter found through hparams but not in `modules`: `hparams.{key}.{module_name}` (forgotten? false positive?)")
+                        warned_ptrs.add(module_param.data.data_ptr())
 
         tested_checkpoint_key_count = 0
         if hasattr(self.hparams, "checkpointer"):
