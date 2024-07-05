@@ -885,7 +885,7 @@ class Brain:
             ckpt_param_tensors = [param.data for param in ckpt_params.values()]
 
             for name, param in self.modules.named_parameters():
-                if param.requires_grad and param.data not in ckpt_param_tensors:
+                if param.requires_grad and not any(param.data is ckpt_param for ckpt_param in ckpt_param_tensors):
                     logger.warning(f"* Parameter tensor not in torch.nn.Module recoverables of checkpointer: {name}")
                 else:
                     logger.debug(f"* OK: {name}")
