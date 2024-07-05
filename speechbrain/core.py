@@ -880,7 +880,7 @@ class Brain:
 
             for recoverable_name, recoverable in self.hparams.checkpointer.recoverables.items():
                 if isinstance(recoverable, torch.nn.Module):
-                    recoverable_params = {f"{recoverable_name}.{name}": param for name, param in recoverable.named_parameters())}
+                    recoverable_params = {f"{recoverable_name}.{name}": param for name, param in recoverable.named_parameters()}
                     ckpt_params.update(recoverable_params)
 
             ckpt_param_tensors = [param.data for param in ckpt_params.values()]
