@@ -887,7 +887,7 @@ class Brain:
                 if param.requires_grad:
                     tested_checkpoint_key_count += 1
                     if not any(param.data.data_ptr() == ckpt_param.data.data_ptr() for ckpt_param in ckpt_params.values()):
-                        logger.warning(f"* Parameter found in `modules` not in any `torch.nn.Module` of `checkpointer.recoverables`: {name} (could be a false positive, or something isn't being saved, whether intentionally or not)")
+                        logger.warning(f"* Trainable parameter found in `modules` not in any `torch.nn.Module` of `checkpointer.recoverables`: {name} (maybe never saved? maybe saved not through the Module??)")
 
         if tested_checkpoint_key_count:
             logger.warning(f"No checkpointer found; couldn't sanity check recoverables")
