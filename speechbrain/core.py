@@ -857,10 +857,11 @@ class Brain:
         """Prints the number of trainable parameters in the model."""
         total_trainable_params = 0
         total_parameters = 0
-        for parameter in self.modules.parameters():
+        for name, parameter in self.modules.named_parameters():
             total_parameters += parameter.numel()
             if parameter.requires_grad:
                 total_trainable_params += parameter.numel()
+            logger.info(f"\t{'GRAD' if parameter.requires_grad else '    '} {name:>50}: {parameter.numel}")
         class_name = self.__class__.__name__
         if total_parameters == 0:
             logger.warning("The model has no parameters!")
