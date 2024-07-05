@@ -879,8 +879,8 @@ class Brain:
         if hasattr(self.hparams, "checkpointer"):
             logger.info("Found checkpointer in hparams, exploring keys")
 
-            for recoverable_name, recoverable in self.hparams.checkpointer.recoverables:
-                print(recoverable, type(recoverable))
+            for recoverable_name, recoverable in self.hparams.checkpointer.recoverables.items():
+                print(recoverable_name, recoverable, type(recoverable))
 
         class_name = self.__class__.__name__
         if total_parameters == 0:
