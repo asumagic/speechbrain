@@ -875,12 +875,18 @@ class Brain:
             )
 
         param_names = set(name for name, param in self.modules.named_parameters())
+        ckpt_names = set()
 
         if hasattr(self.hparams, "checkpointer"):
-            logger.info("Found checkpointer in hparams, exploring keys")
+            logger.info("Found checkpointer in hparams, exploring keys...")
 
             for recoverable_name, recoverable in self.hparams.checkpointer.recoverables.items():
-                print(recoverable_name, recoverable, type(recoverable))
+                if isinstance(recoverable, torch.nn.Module):
+                    recoverable_params = set(name for name, param in recoverable.named_parameters())
+                    ckpt_names += recoverable_params
+                    logger.info(f"* {recoverable_name}: {len(recoverable_params)}")
+            
+            print("\n".join(ckpt_names))
 
         class_name = self.__class__.__name__
         if total_parameters == 0:
