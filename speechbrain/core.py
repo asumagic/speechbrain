@@ -875,7 +875,7 @@ class Brain:
             )
 
         for key, value in self.hparams.__dict__.items():
-            if isinstance(key, torch.nn.Module):
+            if isinstance(value, torch.nn.Module):
                 for module_name, module_param in value.named_parameters():
                     if not any(module_param.data.data_ptr() == known_param.data.data_ptr() for known_param in self.modules.parameters()):
                         logger.warning(f"* Parameter hparams.{key}.{module_name} not listed in modules")
