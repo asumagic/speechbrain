@@ -874,6 +874,12 @@ class Brain:
                 f"{name:<100}"
             )
 
+        for key, value in self.hparams.__dict__.items():
+            if isinstance(key, torch.nn.Module):
+                for module_name, module_param in value.named_parameters():
+                    if not any(module_param.data.data_ptr() == known_param.data.data_ptr() for known_param in self.modules.parameters()):
+                        logger.warning(f"* Parameter hparams.{key}.{module_name} not listed in modules")
+
         tested_checkpoint_key_count = 0
         if hasattr(self.hparams, "checkpointer"):
             ckpt_params = {}
@@ -891,10 +897,11 @@ class Brain:
                         if param.data.data_ptr() == ckpt_param.data.data_ptr():
                             found_match = True
                             match_name = ckpt_name
+
                     if not found_match:
-                        logger.warning(f"* Trainable parameter found in `modules` not in any `torch.nn.Module` of `checkpointer.recoverables`: {name} (maybe never saved? maybe saved not through the Module??)")
+                        logger.warning(f"* Trainable parameter found in `modules` not in any `torch.nn.Module` of `checkpointer.recoverables`: {name} (maybe never saved? maybe saved not through the Module?)")
                     else:
-                        logger.debug(f"* Match: {name:<100} <-> {ckpt_name:<100}")
+                        logger.debug(f"* Match: {name} <-> {match_name}")
 
         if tested_checkpoint_key_count == 0:
             logger.warning(f"No checkpointer found; couldn't sanity check recoverables")
