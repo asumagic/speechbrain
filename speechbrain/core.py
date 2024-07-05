@@ -871,7 +871,7 @@ class Brain:
                 f"dtype={str(parameter.dtype):<15} "
                 f"{(parameter.numel() * parameter.element_size()) / 1024:>9.1f}KiB "
                 f"{parameter.numel():>9}: "
-                f"{name:<100}"
+                f"{name}"
             )
 
         warned_ptrs = set()
