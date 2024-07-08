@@ -217,7 +217,9 @@ noise: !new:speechbrain.nnet.diffusion.LengthMaskedGaussianNoise
     length_dim: 2
 
 diffusion: !new:speechbrain.nnet.diffusion.DenoisingDiffusion
-    model: !ref <unet>
+    model: !new:speechbrain.utils.wrappers.ArgumentMapper
+        function: !ref <unet>
+        remove_keys: [length, out_mask_value, latent_mask_value]
     timesteps: !ref <train_timesteps>
     noise: !ref <noise>
     show_progress: !ref <eval_show_progress>
