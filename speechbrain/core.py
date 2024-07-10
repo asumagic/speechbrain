@@ -850,10 +850,64 @@ class Brain:
         """Prints the number of trainable parameters in the model."""
         total_trainable_params = 0
         total_parameters = 0
-        for parameter in self.modules.parameters():
+
+        logger.info("Dumping model parameters...")
+
+        for name, parameter in self.modules.named_parameters():
             total_parameters += parameter.numel()
             if parameter.requires_grad:
                 total_trainable_params += parameter.numel()
+
+            logger.info(
+                f"* {'GRAD' if parameter.requires_grad else '----'} "
+                f"shape={str(tuple(parameter.shape)):>20} "
+                f"mean={parameter.sum() / parameter.numel():8.4f} "
+                f"std={parameter.std():8.4f} "
+                f"min/max={parameter.abs().max():8.4f} "
+                f"dtype={str(parameter.dtype):<15} "
+                f"{(parameter.numel() * parameter.element_size()) / 1024:>9.1f}KiB "
+                f"{parameter.numel():>9}: "
+                f"{name}"
+            )
+
+        warned_ptrs = set()
+
+        for key, value in self.hparams.__dict__.items():
+            if isinstance(value, torch.nn.Module):
+                for module_name, module_param in value.named_parameters():
+                    if (
+                        module_param.data.data_ptr() not in warned_ptrs
+                        and not any(module_param.data.data_ptr() == known_param.data.data_ptr() for known_param in self.modules.parameters())
+                    ):
+                        logger.warning(f"* Trainable parameter found through hparams but not in `modules`: `hparams.{key}.{module_name}` (forgotten? false positive?)")
+                        warned_ptrs.add(module_param.data.data_ptr())
+
+        tested_checkpoint_key_count = 0
+        if hasattr(self.hparams, "checkpointer"):
+            ckpt_params = {}
+
+            for recoverable_name, recoverable in self.hparams.checkpointer.recoverables.items():
+                if isinstance(recoverable, torch.nn.Module):
+                    recoverable_params = {f"{recoverable_name}.{name}": param for name, param in recoverable.named_parameters()}
+                    ckpt_params.update(recoverable_params)
+
+            for name, param in self.modules.named_parameters():
+                if param.requires_grad:
+                    tested_checkpoint_key_count += 1
+                    found_match = False
+                    for ckpt_name, ckpt_param in ckpt_params.items():
+                        if param.data.data_ptr() == ckpt_param.data.data_ptr():
+                            found_match = True
+                            match_name = ckpt_name
+
+                    if not found_match:
+                        logger.warning(f"* Trainable parameter found in `modules` not in any `torch.nn.Module` of `checkpointer.recoverables`: `{name}` (maybe never saved? maybe saved not through the Module?)")
+                    else:
+                        logger.debug(f"* Match: {name} <-> {match_name}")
+
+        if tested_checkpoint_key_count == 0:
+            logger.warning(f"No checkpointer found; couldn't sanity check recoverables")
+
         class_name = self.__class__.__name__
         if total_parameters == 0:
             logger.warning("The model has no parameters!")
