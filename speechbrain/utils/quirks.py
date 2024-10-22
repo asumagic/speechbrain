@@ -1,11 +1,12 @@
-"""Platform/GPU-specific quirks, i.e. workarounds and saner defaults due to
-platform-specific issues.
+"""Global changes and platform/GPU-specific quirks, i.e. workarounds and saner
+defaults, sometimes due to platform-specific issues.
 
 Author:
     * Sylvain de Langen 2024
 """
 
 import logging
+import os
 
 import torch
 
@@ -35,24 +36,88 @@ def disable_cudnn_benchmarking():
     PyTorch API.
     """
 
-    logger.info(
-        "... Setting `torch.backends.cudnn.benchmark = False`. "
-        "See `disable_cudnn_benchmarking` in `speechbrain/utils/quirks.py`."
-    )
     torch.backends.cudnn.benchmark = False
 
 
-def apply_hip_quirks():
-    """Apply quirks specific to AMD HIP."""
+def disable_jit_profiling():
+    """Disables JIT profiling to avoid performance issues on highly dynamic
+    shapes."""
 
-    logger.info("Detected AMD HIP. Applying HIP-specific quirks...")
+    torch._C._jit_set_profiling_executor(False)
+    torch._C._jit_set_profiling_mode(False)
 
-    disable_cudnn_benchmarking()
+
+def allow_tf32():
+    """On CUDA backends (potentially including ROCm), enables TensorFloat32
+    support for CuDNN and the matmul operator.
+
+    This allows performing certain operations transparently at a lower
+    precision, even in fp32 math when AMP is not in use, when otherwise tensor
+    cores would not be used. TF32 supports accumulation into fp32, so the
+    concern for overflowing is somewhat mitigated.
+
+    On NVIDIA GPUs, this is available since Ampere (e.g. A100).
+
+    See `PyTorch documentation <https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-and-later-devices>`__ for more
+    details."""
+
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+
+
+KNOWN_QUIRKS = {
+    "disable_cudnn_benchmarking": disable_cudnn_benchmarking,
+    "disable_jit_profiling": disable_jit_profiling,
+    "allow_tf32": allow_tf32,
+}
+
+"""Applied quirk list. Populated by `apply_quirks`."""
+applied_quirks = set()
+
+"""Excluded quirk list. Populated by `apply_quirks` from the `SB_DISABLE_QUIRKS`
+environment variable, which is a comma-separated list of quirks to disable."""
+excluded_quirks = set()
 
 
 def apply_quirks():
-    """Apply quirks depending on the platform."""
+    """Apply quirks depending on the platform. Also populates `applied_quirks`."""
+
+    global applied_quirks, excluded_quirks
+
+    # global quirks
+    applied_quirks.add("disable_jit_profiling")
+    applied_quirks.add("allow_tf32")
 
     # AMD HIP?
     if torch.cuda.is_available() and torch.version.hip:
-        apply_hip_quirks()
+        applied_quirks.add("disable_cudnn_benchmarking")
+
+    if "SB_DISABLE_QUIRKS" in os.environ:
+        for quirk_to_exclude in os.environ["SB_DISABLE_QUIRKS"].split(","):
+            if quirk_to_exclude != "":
+                if quirk_to_exclude not in KNOWN_QUIRKS.keys():
+                    raise ValueError(
+                        f'SB_DISABLE_QUIRKS environment variable includes unknown quirk name "{quirk_to_exclude}". Supported quirks: [{", ".join(KNOWN_QUIRKS.keys())}]'
+                    )
+                excluded_quirks.add(quirk_to_exclude)
+
+    applied_quirks = applied_quirks - excluded_quirks
+
+    # finally, apply quirks
+    for quirk in applied_quirks:
+        KNOWN_QUIRKS[quirk]()
+
+    log_applied_quirks()
+
+
+def log_applied_quirks():
+    """Logs whichever quirks have been applied by `apply_quirks`."""
+    logger.info(
+        "Applied quirks (see `speechbrain.utils.quirks`): [%s]",
+        ", ".join(applied_quirks),
+    )
+
+    logger.info(
+        "Excluded quirks specified by the `SB_DISABLE_QUIRKS` environment (comma-separated list): [%s]",
+        ", ".join(excluded_quirks),
+    )

@@ -11,7 +11,6 @@ Authors
 """
 
 import functools
-import logging
 import math
 from collections import namedtuple
 from itertools import permutations
@@ -25,8 +24,9 @@ import torch.nn.functional as F
 from speechbrain.dataio.dataio import length_to_mask
 from speechbrain.decoders.ctc import filter_ctc_output
 from speechbrain.utils.data_utils import unsqueeze_as
+from speechbrain.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def transducer_loss(
