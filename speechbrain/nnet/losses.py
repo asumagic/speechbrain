@@ -14,11 +14,11 @@ import functools
 import math
 from collections import namedtuple
 from itertools import permutations
+from typing import List
 
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import List
 import torch.nn.functional as F
 
 from speechbrain.dataio.dataio import length_to_mask
@@ -144,6 +144,7 @@ def save_and_plot_tot_grad(
       plot_dir: a path where the plot will be saved.
     """
     import os
+
     import matplotlib.pyplot as plt
 
     B = px_grad.size(0)  # batch_size

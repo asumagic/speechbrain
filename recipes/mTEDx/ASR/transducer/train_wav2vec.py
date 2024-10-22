@@ -23,15 +23,17 @@ Authors
  * Mohamed Anwar 2022
 """
 
+import logging
 import os
 import sys
+
 import torch
-import logging
-import speechbrain as sb
 from hyperpyyaml import load_hyperpyyaml
-from speechbrain.utils.distributed import run_on_main
-from speechbrain.tokenizers.SentencePiece import SentencePiece
+
+import speechbrain as sb
 from recipes.mTEDx.mtedx_prepare import remove_punctuations
+from speechbrain.tokenizers.SentencePiece import SentencePiece
+from speechbrain.utils.distributed import run_on_main
 
 logger = logging.getLogger(__name__)
 
@@ -166,10 +168,12 @@ class ASR(sb.core.Brain):
                     valid_stats=stage_stats,
                 )
             self.checkpointer.save_and_keep_only(
-                meta={"WER": stage_stats["WER"]}, min_keys=["WER"],
+                meta={"WER": stage_stats["WER"]},
+                min_keys=["WER"],
             )
             self.checkpointer.save_and_keep_only(
-                meta={"WER": stage_stats["WER"]}, min_keys=["WER"],
+                meta={"WER": stage_stats["WER"]},
+                min_keys=["WER"],
             )
         elif stage == sb.Stage.TEST:
             self.hparams.train_logger.log_stats(
@@ -202,7 +206,8 @@ class ASR(sb.core.Brain):
 # Define custom data procedure
 def dataio_prepare(hparams, tokenizer):
     """This function prepares the datasets to be used in the brain class.
-    It also defines the data processing pipeline through user-defined functions."""
+    It also defines the data processing pipeline through user-defined functions.
+    """
 
     # 1. Define datasets
     data_folder = hparams["data_folder"]
@@ -238,10 +243,12 @@ def dataio_prepare(hparams, tokenizer):
 
     # We also sort the test data so it is faster to test
     test_data = sb.dataio.dataset.DynamicItemDataset.from_json(
-        json_path=hparams["test_json"], replacements={"data_root": data_folder},
+        json_path=hparams["test_json"],
+        replacements={"data_root": data_folder},
     )
     test_data = test_data.filtered_sorted(
-        sort_key="duration", reverse=hparams["sorting"] == "descending",
+        sort_key="duration",
+        reverse=hparams["sorting"] == "descending",
     )
 
     datasets = [train_data, valid_data, test_data]

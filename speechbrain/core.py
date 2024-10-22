@@ -44,12 +44,7 @@ from speechbrain.dataio.sampler import (
 from speechbrain.utils.distributed import is_distributed_initialized
 from speechbrain.utils.logger import get_logger
 from speechbrain.utils.optimizers import rm_vector_weight_decay
-from speechbrain.dataio.dataloader import LoopedLoader
-from speechbrain.dataio.dataloader import SaveableDataLoader
-from speechbrain.dataio.sampler import DistributedSamplerWrapper
-from speechbrain.dataio.sampler import ReproducibleRandomSampler
-from speechbrain.utils.profiling import prepare_profiler, ProfiledIterable
-from dataclasses import dataclass
+from speechbrain.utils.profiling import ProfiledIterable, prepare_profiler
 
 sb.utils.quirks.apply_quirks()
 

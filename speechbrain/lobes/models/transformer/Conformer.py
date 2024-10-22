@@ -1162,7 +1162,12 @@ class ConformerDecoder(nn.Module):
 
 
 class ConformerWarmupScheduler:
-    def __init__(self, step_count: int = 3000, warmup_start: float = 0.1, warmup_end: float = 1.0):
+    def __init__(
+        self,
+        step_count: int = 3000,
+        warmup_start: float = 0.1,
+        warmup_end: float = 1.0,
+    ):
         self.step_count = step_count
         self.warmup_start = warmup_start
         self.warmup_end = warmup_end
@@ -1171,4 +1176,6 @@ class ConformerWarmupScheduler:
         warmup_completion = min(1.0, current_step / self.step_count)
 
         # lerp from warmup_start to warmup_end
-        return self.warmup_start + warmup_completion * (self.warmup_end - self.warmup_start)
+        return self.warmup_start + warmup_completion * (
+            self.warmup_end - self.warmup_start
+        )

@@ -11,15 +11,16 @@ Authors
  * Jianyuan Zhong 2021
  * Mohamed Anwar 2022
 """
+import logging
 import os
 import sys
-import logging
+
 import torch
-import speechbrain as sb
 from datasets import load_dataset
 from hyperpyyaml import load_hyperpyyaml
-from speechbrain.utils.distributed import run_on_main
 
+import speechbrain as sb
+from speechbrain.utils.distributed import run_on_main
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,8 @@ class LM(sb.core.Brain):
                 valid_stats=stage_stats,
             )
             self.checkpointer.save_and_keep_only(
-                meta=stage_stats, min_keys=["loss"],
+                meta=stage_stats,
+                min_keys=["loss"],
             )
 
 
@@ -119,7 +121,10 @@ def dataio_prepare(hparams):
             )
 
     logging.debug("prepare data and generate datasets")
-    datasets = load_dataset("text", data_files=text_data_files,)
+    datasets = load_dataset(
+        "text",
+        data_files=text_data_files,
+    )
 
     logging.debug("convert huggingface's dataset to DynamicItemDataset")
     train_data = sb.dataio.dataset.DynamicItemDataset.from_arrow_dataset(
@@ -137,6 +142,7 @@ def dataio_prepare(hparams):
     tokenizer = hparams["tokenizer"]
 
     """Define text pipeline"""
+
     # TODO: implement text augmentations pipelines
     @sb.utils.data_pipeline.takes("text")
     @sb.utils.data_pipeline.provides("text", "tokens_bos", "tokens_eos")
@@ -152,7 +158,8 @@ def dataio_prepare(hparams):
 
     # 4. Set output:
     sb.dataio.dataset.set_output_keys(
-        datasets, ["id", "text", "tokens_bos", "tokens_eos"],
+        datasets,
+        ["id", "text", "tokens_bos", "tokens_eos"],
     )
     return train_data, valid_data, test_data
 

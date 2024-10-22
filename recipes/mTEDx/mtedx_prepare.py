@@ -8,16 +8,18 @@ Author
 Mohamed Anwar (Anwarvic) 2022
 """
 
-import os
 import json
-import string
 import logging
+import os
+import string
 
 logger = logging.getLogger(__name__)
 
 
 def prepare_mtedx(
-    data_folder, save_folder, langs=[],
+    data_folder,
+    save_folder,
+    langs=[],
 ):
     """
     This function prepares the json files for the mTEDx dataset.

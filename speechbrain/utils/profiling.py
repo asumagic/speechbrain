@@ -4,14 +4,17 @@ Author:
     * Titouan Parcollet 2024
 """
 
-import torch
 import os
 import time
 
+import torch
 from torch import profiler
 
+
 class ProfiledIterable:
-    def __init__(self, iterable, warn_threshold: float = 0.1, for_steps: int = 5):
+    def __init__(
+        self, iterable, warn_threshold: float = 0.1, for_steps: int = 5
+    ):
         self.iterable = iterable
         self.iterator = iter(iterable)
         self.warn_threshold = warn_threshold
@@ -35,7 +38,9 @@ class ProfiledIterable:
         time_last_steps = sum(self.last_times)
 
         if time_last_steps > self.warn_threshold:
-            print(f"!!! Data loading slow: took {time_last_steps}s total for the past {self.for_steps} iterations; consider increasing workers or verifying IO bottlenecking issues")
+            print(
+                f"!!! Data loading slow: took {time_last_steps}s total for the past {self.for_steps} iterations; consider increasing workers or verifying IO bottlenecking issues"
+            )
 
         return element
 
@@ -43,7 +48,7 @@ class ProfiledIterable:
         return len(self.iterable)
 
 
-def profiled_iterable(iterable, warn_threshold = 0.1):
+def profiled_iterable(iterable, warn_threshold=0.1):
     iterator = iter(iterable)
 
     while True:
@@ -64,8 +69,12 @@ def profiled_iterable(iterable, warn_threshold = 0.1):
 
 
 def default_trace_handler(prof, logdir):
-    prof.export_stacks(os.path.join(logdir, "cpu_stacks.txt"), metric="self_cpu_time_total")
-    prof.export_stacks(os.path.join(logdir, "gpu_stacks.txt"), metric="self_cuda_time_total")
+    prof.export_stacks(
+        os.path.join(logdir, "cpu_stacks.txt"), metric="self_cpu_time_total"
+    )
+    prof.export_stacks(
+        os.path.join(logdir, "gpu_stacks.txt"), metric="self_cuda_time_total"
+    )
 
 
 def prepare_profiler(
@@ -98,7 +107,9 @@ def prepare_profiler(
         with_stack=True,
         activities=[
             torch.profiler.ProfilerActivity.CPU,
-            torch.profiler.ProfilerActivity.CUDA
+            torch.profiler.ProfilerActivity.CUDA,
         ],
-        experimental_config=torch._C._profiler._ExperimentalConfig(verbose=True)
+        experimental_config=torch._C._profiler._ExperimentalConfig(
+            verbose=True
+        ),
     )

@@ -40,9 +40,9 @@ import torch
 from hyperpyyaml import load_hyperpyyaml
 
 import speechbrain as sb
+import speechbrain.nnet.schedulers as schedulers
 from speechbrain.utils.distributed import if_main_process, run_on_main
 from speechbrain.utils.logger import get_logger
-import speechbrain.nnet.schedulers as schedulers
 
 logger = get_logger(__name__)
 
@@ -94,7 +94,7 @@ class ASR(sb.Brain):
             dynchunktrain_config=dynchunktrain_config,
             encoder_kwargs={
                 "warmup": self.hparams.conformer_warmup(self.optimizer_step)
-            }
+            },
         )
         x = self.modules.proj_enc(x)
 
@@ -177,7 +177,13 @@ class ASR(sb.Brain):
                     p_ce, tokens_eos, length=token_eos_lens
                 )
             loss_transducer = self.hparams.transducer_cost(
-                enc_out, dec_out, tokens, wav_lens, token_lens, ids, current_epoch
+                enc_out,
+                dec_out,
+                tokens,
+                wav_lens,
+                token_lens,
+                ids,
+                current_epoch,
             )
             # print(f"CTC: {CTC_loss.item()}, RNN-T: {loss_transducer.item()}")
             loss = (
@@ -188,7 +194,13 @@ class ASR(sb.Brain):
             )
         else:
             loss = self.hparams.transducer_cost(
-                enc_out, dec_out, tokens, wav_lens, token_lens, ids, current_epoch - 1
+                enc_out,
+                dec_out,
+                tokens,
+                wav_lens,
+                token_lens,
+                ids,
+                current_epoch - 1,
             )
 
         if stage != sb.Stage.TRAIN:
