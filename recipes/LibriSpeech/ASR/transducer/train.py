@@ -40,6 +40,7 @@ import torch
 from hyperpyyaml import load_hyperpyyaml
 
 import speechbrain as sb
+import speechbrain.nnet.schedulers as schedulers
 from speechbrain.utils.distributed import if_main_process, run_on_main
 from speechbrain.utils.logger import get_logger
 
@@ -91,6 +92,9 @@ class ASR(sb.Brain):
             wav_lens,
             pad_idx=self.hparams.pad_index,
             dynchunktrain_config=dynchunktrain_config,
+            encoder_kwargs={
+                "warmup": self.hparams.conformer_warmup(self.optimizer_step)
+            },
         )
         x = self.modules.proj_enc(x)
 
@@ -105,14 +109,6 @@ class ASR(sb.Brain):
             h, self.hparams.dec_dropout, training=(stage == sb.Stage.TRAIN)
         )
         h = self.modules.proj_dec(h)
-
-        # Joint network
-        # add labelseq_dim to the encoder tensor: [B,T,H_enc] => [B,T,1,H_enc]
-        # add timeseq_dim to the decoder tensor: [B,U,H_dec] => [B,1,U,H_dec]
-        joint = self.modules.Tjoint(x.unsqueeze(2), h.unsqueeze(1))
-
-        # Output layer for transducer log-probabilities
-        logits_transducer = self.modules.transducer_lin(joint)
 
         # Compute outputs
         if stage == sb.Stage.TRAIN:
@@ -132,32 +128,29 @@ class ASR(sb.Brain):
                 p_ce = self.modules.dec_lin(h)
                 p_ce = self.hparams.log_softmax(p_ce)
 
-            return p_ctc, p_ce, logits_transducer, wav_lens
+            return p_ctc, p_ce, x, h, wav_lens
 
-        elif stage == sb.Stage.VALID:
-            best_hyps, scores, _, _ = self.hparams.Greedysearcher(x)
-            return logits_transducer, wav_lens, best_hyps
         else:
-            (
-                best_hyps,
-                best_scores,
-                nbest_hyps,
-                nbest_scores,
-            ) = self.hparams.Beamsearcher(x)
-            return logits_transducer, wav_lens, best_hyps
+            best_hyps, scores, _, _ = self.hparams.Greedysearcher(x)
+            return x, h, wav_lens, best_hyps
 
     def compute_objectives(self, predictions, batch, stage):
         """Computes the loss (Transducer+(CTC+NLL)) given predictions and targets."""
 
         ids = batch.id
+        current_epoch = self.hparams.epoch_counter.current
         tokens, token_lens = batch.tokens
         tokens_eos, token_eos_lens = batch.tokens_eos
 
-        # Train returns 4 elements vs 3 for val and test
-        if len(predictions) == 4:
-            p_ctc, p_ce, logits_transducer, wav_lens = predictions
+        # Train returns 5 elements vs 4 for val and test
+        if len(predictions) == 5:
+            p_ctc, p_ce, enc_out, dec_out, wav_lens = predictions
         else:
-            logits_transducer, wav_lens, predicted_tokens = predictions
+            enc_out, dec_out, wav_lens, predicted_tokens = predictions
+
+        # pruned loss only supports fp32
+        enc_out = enc_out.to(torch.float32)
+        dec_out = dec_out.to(torch.float32)
 
         if stage == sb.Stage.TRAIN:
             # Labels must be extended if parallel augmentation or concatenated
@@ -184,8 +177,15 @@ class ASR(sb.Brain):
                     p_ce, tokens_eos, length=token_eos_lens
                 )
             loss_transducer = self.hparams.transducer_cost(
-                logits_transducer, tokens, wav_lens, token_lens
+                enc_out,
+                dec_out,
+                tokens,
+                wav_lens,
+                token_lens,
+                ids,
+                current_epoch,
             )
+            # print(f"CTC: {CTC_loss.item()}, RNN-T: {loss_transducer.item()}")
             loss = (
                 self.hparams.ctc_weight * CTC_loss
                 + self.hparams.ce_weight * CE_loss
@@ -194,7 +194,13 @@ class ASR(sb.Brain):
             )
         else:
             loss = self.hparams.transducer_cost(
-                logits_transducer, tokens, wav_lens, token_lens
+                enc_out,
+                dec_out,
+                tokens,
+                wav_lens,
+                token_lens,
+                ids,
+                current_epoch - 1,
             )
 
         if stage != sb.Stage.TRAIN:
@@ -208,11 +214,6 @@ class ASR(sb.Brain):
             self.cer_metric.append(ids, predicted_words, target_words)
 
         return loss
-
-    def on_fit_batch_end(self, batch, outputs, loss, should_step):
-        """At the end of the optimizer step, apply noam annealing."""
-        if should_step:
-            self.hparams.noam_annealing(self.optimizer)
 
     def on_stage_start(self, stage, epoch):
         """Gets called at the beginning of each epoch"""
@@ -232,13 +233,16 @@ class ASR(sb.Brain):
 
         # Perform end-of-iteration things, like annealing, logging, etc.
         if stage == sb.Stage.VALID:
-            lr = self.hparams.noam_annealing.current_lr
+            # Learning rate annealing
+            current_lr, next_lr = self.hparams.lr_scheduler(epoch)
+            schedulers.update_learning_rate(self.optimizer, next_lr)
+
             steps = self.optimizer_step
             optimizer = self.optimizer.__class__.__name__
 
             epoch_stats = {
                 "epoch": epoch,
-                "lr": lr,
+                "lr": current_lr,
                 "steps": steps,
                 "optimizer": optimizer,
             }
